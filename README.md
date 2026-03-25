@@ -25,7 +25,7 @@ A modern React-based frontend application for UniWheels, a platform designed to 
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/UN-Wheels/FrontEnd
    cd frontend
    ```
 
