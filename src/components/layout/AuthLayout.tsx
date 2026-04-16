@@ -26,7 +26,11 @@ export function AuthLayout() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           </div>
+<<<<<<< HEAD
           <h1 className="text-3xl font-bold text-white"><span className="text-primary">UN</span> Wheels</h1>
+=======
+          <h1 className="text-3xl font-bold text-white">UN Wheels</h1>
+>>>>>>> 6c3bc753c6657ba631ffbe3125905755928eabc9
           <p className="text-gray-300 mt-2">Viajen juntos, ahorren juntos</p>
         </div>
 

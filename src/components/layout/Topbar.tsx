@@ -77,7 +77,11 @@ export function Topbar() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           </div>
+<<<<<<< HEAD
           <span className="text-xl font-bold text-white hidden sm:block"><span className="text-primary">UN</span> Wheels</span>
+=======
+          <span className="text-xl font-bold text-white hidden sm:block">UN Wheels</span>
+>>>>>>> 6c3bc753c6657ba631ffbe3125905755928eabc9
         </Link>
 
         {/* Navegación Horizontal (Desktop) */}
