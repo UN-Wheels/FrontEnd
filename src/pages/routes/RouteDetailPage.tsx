@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import { Card, CardTitle, Button, Avatar, StarRating, Badge, Loading, Modal } from '../../components/ui';
 import { mockService } from '../../services/mockData';
 import { Route } from '../../types';
+
+const originIcon = L.divIcon({
+  className: '',
+  html: '<div style="width:18px;height:18px;border-radius:9999px;background:#45acab;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
+const destinationIcon = L.divIcon({
+  className: '',
+  html: '<div style="width:18px;height:18px;border-radius:9999px;background:#1f3f69;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
 
 export function RouteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -115,11 +131,11 @@ export function RouteDetailPage() {
               <div className="flex-1">
                 <div>
                   <p className="text-sm text-gray-500 uppercase tracking-wide">Origen</p>
-                  <p className="text-xl font-semibold text-gray-900">{route.origin}</p>
+                  <p className="text-xl font-semibold text-gray-900">{route.origin.address}</p>
                 </div>
                 <div className="mt-8">
                   <p className="text-sm text-gray-500 uppercase tracking-wide">Destino</p>
-                  <p className="text-xl font-semibold text-gray-900">{route.destination}</p>
+                  <p className="text-xl font-semibold text-gray-900">{route.destination.address}</p>
                 </div>
               </div>
             </div>
@@ -151,6 +167,47 @@ export function RouteDetailPage() {
               <div>
                 <p className="text-sm text-gray-500">Precio cupo</p>
                 <p className="font-semibold text-primary text-lg">${route.price.toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-sm text-gray-500 uppercase tracking-wide mb-3">Vista en mapa</p>
+              <div className="rounded-xl overflow-hidden border border-gray-100">
+                <MapContainer
+                  center={[
+                    (route.origin.lat + route.destination.lat) / 2,
+                    (route.origin.lng + route.destination.lng) / 2,
+                  ]}
+                  zoom={12}
+                  style={{ height: '300px', width: '100%' }}
+                  scrollWheelZoom
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  />
+                  <Polyline
+                    positions={[
+                      [route.origin.lat, route.origin.lng],
+                      [route.destination.lat, route.destination.lng],
+                    ]}
+                    pathOptions={{ color: '#45acab', weight: 4, opacity: 0.85 }}
+                  />
+                  <Marker position={[route.origin.lat, route.origin.lng]} icon={originIcon}>
+                    <Popup>
+                      <strong>Origen</strong>
+                      <br />
+                      {route.origin.address}
+                    </Popup>
+                  </Marker>
+                  <Marker position={[route.destination.lat, route.destination.lng]} icon={destinationIcon}>
+                    <Popup>
+                      <strong>Destino</strong>
+                      <br />
+                      {route.destination.address}
+                    </Popup>
+                  </Marker>
+                </MapContainer>
               </div>
             </div>
           </Card>
@@ -266,7 +323,7 @@ export function RouteDetailPage() {
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-500">Ruta</p>
-              <p className="font-medium text-gray-900">{route.origin} → {route.destination}</p>
+              <p className="font-medium text-gray-900">{route.origin.address} → {route.destination.address}</p>
               <p className="text-sm text-gray-500 mt-2">Salida</p>
               <p className="font-medium text-gray-900">{formatDateTime(route.departureTime)}</p>
             </div>

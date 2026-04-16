@@ -93,7 +93,7 @@ export function RegisterPage() {
     <div>
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-white">Crear cuenta</h2>
-        <p className="text-gray-200 mt-1">Únete a la comunidad UniWheels</p>
+        <p className="text-gray-200 mt-1">Únete a la comunidad UN Wheels</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

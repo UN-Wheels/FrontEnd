@@ -26,7 +26,7 @@ export function AuthLayout() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-white">UniWheels</h1>
+          <h1 className="text-3xl font-bold text-white"><span className="text-primary">UN</span> Wheels</h1>
           <p className="text-gray-300 mt-2">Viajen juntos, ahorren juntos</p>
         </div>
 
@@ -35,7 +35,7 @@ export function AuthLayout() {
         </div>
 
         <p className="text-center text-gray-400 text-sm mt-6">
-          &copy; {new Date().getFullYear()} UniWheels. Todos los derechos reservados.
+          &copy; {new Date().getFullYear()} UN Wheels. Todos los derechos reservados.
         </p>
       </div>
     </div>

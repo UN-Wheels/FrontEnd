@@ -193,7 +193,7 @@ export function BookingsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     <span className="truncate">
-                      {booking.route.origin} → {booking.route.destination}
+                      {booking.route.origin.address} → {booking.route.destination.address}
                     </span>
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
@@ -272,7 +272,7 @@ export function BookingsPage() {
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-500">Ruta</p>
               <p className="font-medium text-gray-900">
-                {selectedBooking.route.origin} → {selectedBooking.route.destination}
+                {selectedBooking.route.origin.address} → {selectedBooking.route.destination.address}
               </p>
               <p className="text-sm text-gray-500 mt-2">Cupos solicitados</p>
               <p className="font-medium text-gray-900">{selectedBooking.seatsRequested}</p>

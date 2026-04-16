@@ -1,4 +1,17 @@
-import { Route, Booking, User, Conversation, Message, Trip, Notification } from '../types';
+import { Route, Booking, User, Conversation, Message, Trip, Notification, Location } from '../types';
+
+// Haversine distance in metres between two Location points
+function haversineMetres(a: Location, b: Location): number {
+  const R = 6_371_000;
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const sinA = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(sinA), Math.sqrt(1 - sinA));
+}
+
+const SEARCH_RADIUS_M = 8_000; // 8 km
 
 // Mock users
 export const mockUsers: User[] = [
@@ -44,85 +57,57 @@ export const mockUsers: User[] = [
   },
 ];
 
-// Mock routes
+// Mock routes — origin/destination now include real Bogotá coordinates
 export const mockRoutes: Route[] = [
   {
     id: '1',
     driver: mockUsers[1],
-    origin: 'Centro Comercial Andino',
-    destination: 'Universidad de los Andes',
+    origin:      { address: 'Centro Comercial Andino, Bogotá',    lat: 4.6700, lng: -74.0545 },
+    destination: { address: 'Universidad de los Andes, Bogotá',   lat: 4.6015, lng: -74.0657 },
     departureTime: '2026-03-06T07:30:00',
     availableSeats: 3,
     totalSeats: 4,
     price: 8000,
-    vehicle: {
-      id: 'v1',
-      brand: 'Mazda',
-      model: '3',
-      color: 'Rojo',
-      plateNumber: 'ABC123',
-      year: 2022,
-    },
+    vehicle: { id: 'v1', brand: 'Mazda',     model: '3',      color: 'Rojo',   plateNumber: 'ABC123', year: 2022 },
     status: 'ACTIVE',
     createdAt: '2026-03-01',
   },
   {
     id: '2',
     driver: mockUsers[2],
-    origin: 'Portal del Norte',
-    destination: 'Universidad Nacional',
+    origin:      { address: 'Portal del Norte, Bogotá',            lat: 4.7570, lng: -74.0560 },
+    destination: { address: 'Universidad Nacional de Colombia',    lat: 4.6357, lng: -74.0835 },
     departureTime: '2026-03-06T08:00:00',
     availableSeats: 2,
     totalSeats: 4,
     price: 6000,
-    vehicle: {
-      id: 'v2',
-      brand: 'Chevrolet',
-      model: 'Spark',
-      color: 'Blanco',
-      plateNumber: 'XYZ789',
-      year: 2021,
-    },
+    vehicle: { id: 'v2', brand: 'Chevrolet', model: 'Spark',   color: 'Blanco', plateNumber: 'XYZ789', year: 2021 },
     status: 'ACTIVE',
     createdAt: '2026-03-02',
   },
   {
     id: '3',
     driver: mockUsers[3],
-    origin: 'Usaquén',
-    destination: 'Universidad Javeriana',
+    origin:      { address: 'Usaquén, Bogotá',                     lat: 4.6941, lng: -74.0307 },
+    destination: { address: 'Pontificia Universidad Javeriana',    lat: 4.6279, lng: -74.0647 },
     departureTime: '2026-03-06T07:00:00',
     availableSeats: 1,
     totalSeats: 3,
     price: 10000,
-    vehicle: {
-      id: 'v3',
-      brand: 'Renault',
-      model: 'Sandero',
-      color: 'Gris',
-      plateNumber: 'DEF456',
-      year: 2023,
-    },
+    vehicle: { id: 'v3', brand: 'Renault',   model: 'Sandero', color: 'Gris',   plateNumber: 'DEF456', year: 2023 },
     status: 'ACTIVE',
     createdAt: '2026-03-01',
   },
   {
     id: '4',
     driver: mockUsers[1],
-    origin: 'Chapinero',
-    destination: 'Universidad del Rosario',
+    origin:      { address: 'Chapinero, Bogotá',                   lat: 4.6488, lng: -74.0602 },
+    destination: { address: 'Universidad del Rosario, Bogotá',     lat: 4.5981, lng: -74.0764 },
     departureTime: '2026-03-07T09:00:00',
     availableSeats: 4,
     totalSeats: 4,
     price: 7000,
-    vehicle: {
-      id: 'v1',
-      brand: 'Mazda',
-      model: '3',
-      color: 'Rojo',
-      plateNumber: 'ABC123',
-      year: 2022,
-    },
+    vehicle: { id: 'v1', brand: 'Mazda',     model: '3',      color: 'Rojo',   plateNumber: 'ABC123', year: 2022 },
     status: 'ACTIVE',
     createdAt: '2026-03-03',
   },
@@ -302,22 +287,18 @@ export const mockNotifications: Notification[] = [
 
 // Service functions with simulated delays
 export const mockService = {
-  // Routes
-  async getRoutes(filters?: { origin?: string; destination?: string; date?: string }): Promise<Route[]> {
+  // Routes — filters by proximity when a Location is provided
+  async getRoutes(filters?: { origin?: Location | null; destination?: Location | null; date?: string }): Promise<Route[]> {
     await new Promise(resolve => setTimeout(resolve, 500));
     let routes = [...mockRoutes];
-    
+
     if (filters?.origin) {
-      routes = routes.filter(r => 
-        r.origin.toLowerCase().includes(filters.origin!.toLowerCase())
-      );
+      routes = routes.filter(r => haversineMetres(r.origin, filters.origin!) <= SEARCH_RADIUS_M);
     }
     if (filters?.destination) {
-      routes = routes.filter(r => 
-        r.destination.toLowerCase().includes(filters.destination!.toLowerCase())
-      );
+      routes = routes.filter(r => haversineMetres(r.destination, filters.destination!) <= SEARCH_RADIUS_M);
     }
-    
+
     return routes;
   },
 

@@ -96,7 +96,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">UniWheels</h1>
+              <h1 className="text-xl font-bold text-white"><span className="text-primary">UN</span> Wheels</h1>
               <p className="text-xs text-gray-400">Viajen juntos, ahorren juntos</p>
             </div>
           </div>

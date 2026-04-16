@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardLayout, AuthLayout } from './components/layout';
 import {
+  LandingPage,
   LoginPage,
   RegisterPage,
   DashboardPage,
@@ -32,9 +33,9 @@ function App() {
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
-      {/* Redirects */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Landing & fallback */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -70,14 +70,14 @@ export function Topbar() {
     <header className="bg-[#151b3d] border-b border-white/10 px-4 lg:px-8 py-2 flex items-center justify-between sticky top-0 z-30 shadow-lg">
       {/* Lado Izquierdo: Logo y Navegación Principal */}
       <div className="flex items-center gap-8">
-        {/* Logo de UniWheels */}
+        {/* Logo de UN Wheels */}
         <Link to="/dashboard" className="flex items-center gap-2 group">
           <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           </div>
-          <span className="text-xl font-bold text-white hidden sm:block">UniWheels</span>
+          <span className="text-xl font-bold text-white hidden sm:block"><span className="text-primary">UN</span> Wheels</span>
         </Link>
 
         {/* Navegación Horizontal (Desktop) */}

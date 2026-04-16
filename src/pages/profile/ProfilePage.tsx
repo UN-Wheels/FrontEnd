@@ -106,7 +106,7 @@ export function ProfilePage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-gray-900 truncate">
-                        {trip.route.origin} → {trip.route.destination}
+                        {trip.route.origin.address} → {trip.route.destination.address}
                       </p>
                       <Badge variant={trip.role === 'DRIVER' ? 'primary' : 'info'} size="sm">
                         {trip.role === 'DRIVER' ? 'Conductor' : 'Pasajero'}

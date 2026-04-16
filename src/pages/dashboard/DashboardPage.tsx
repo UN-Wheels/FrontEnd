@@ -131,7 +131,7 @@ export function DashboardPage() {
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 truncate">
-                      {booking.route.origin} → {booking.route.destination}
+                      {booking.route.origin.address} → {booking.route.destination.address}
                     </p>
                     <p className="text-sm text-gray-500 capitalize">
                       {new Date(booking.route.departureTime).toLocaleDateString('es-CO', {
@@ -173,7 +173,7 @@ export function DashboardPage() {
                 />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-900 truncate">
-                    {route.origin} → {route.destination}
+                    {route.origin.address} → {route.destination.address}
                   </p>
                   <div className="flex items-center gap-2 text-sm text-gray-500">
                     <span>{route.driver.fullName}</span>

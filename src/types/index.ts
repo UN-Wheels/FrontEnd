@@ -31,12 +31,19 @@ export interface RegisterData {
   confirmPassword: string;
 }
 
+// Location type (coordinates + human-readable address)
+export interface Location {
+  address: string;
+  lat: number;
+  lng: number;
+}
+
 // Route types
 export interface Route {
   id: string;
   driver: User;
-  origin: string;
-  destination: string;
+  origin: Location;
+  destination: Location;
   departureTime: string;
   availableSeats: number;
   totalSeats: number;
@@ -56,8 +63,8 @@ export interface Vehicle {
 }
 
 export interface RouteFilters {
-  origin?: string;
-  destination?: string;
+  origin?: Location | null;
+  destination?: Location | null;
   date?: string;
 }
 

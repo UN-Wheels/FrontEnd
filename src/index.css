@@ -114,3 +114,47 @@ body {
 .animate-slide-in {
   animation: slideIn 0.3s ease-out;
 }
+
+/* Landing page animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-18px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(1.08); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float 9s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float 7s ease-in-out 2.5s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* SVG dashed-path flow for route network illustration */
+@keyframes dash-flow {
+  to { stroke-dashoffset: -20; }
+}
+.animate-dash-flow {
+  animation: dash-flow 1.8s linear infinite;
+}
+.animate-dash-flow-b {
+  animation: dash-flow 2.4s linear infinite;
+}
+
+/* Scroll-to anchor offset for sticky navbar */
+html {
+  scroll-padding-top: 72px;
+  scroll-behavior: smooth;
+}
