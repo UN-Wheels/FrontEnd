@@ -57,8 +57,8 @@ export function SearchRoutesPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Buscar Rutas</h1>
-        <p className="text-gray-600 mt-1">Encuentra el viaje perfecto hacia tu destino</p>
+        <h1 className="text-2xl font-bold text-white">Buscar Rutas</h1>
+        <p className="text-gray-200 mt-1">Encuentra el viaje perfecto hacia tu destino</p>
       </div>
 
       {/* Filtros de búsqueda */}
@@ -116,8 +116,8 @@ export function SearchRoutesPage() {
       ) : (
         <>
           <div className="flex items-center justify-between">
-            <p className="text-gray-600">
-              Se encontraron <span className="font-semibold text-gray-900">{routes.length}</span> rutas
+            <p className="text-gray-200">
+              Se encontraron <span className="font-semibold text-white">{routes.length}</span> rutas
             </p>
           </div>
 

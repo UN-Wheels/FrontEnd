@@ -21,10 +21,10 @@ export function DashboardPage() {
       {/* Encabezado de bienvenida */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-white">
             ¡Hola de nuevo, {user?.fullName?.split(' ')[0]}!
           </h1>
-          <p className="text-gray-600 mt-1">Esto es lo que está pasando con tus viajes</p>
+          <p className="text-gray-200 mt-1">Esto es lo que está pasando con tus viajes</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" onClick={() => navigate('/search')}>
@@ -70,12 +70,12 @@ export function DashboardPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">CO2 Ahorrado</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.co2Saved} kg</p>
+              <p className="text-gray-500 text-sm">Algo</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1"> xd</p>
             </div>
             <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                
               </svg>
             </div>
           </div>

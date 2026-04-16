@@ -71,8 +71,8 @@ export function RouteDetailPage() {
   if (!route) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900">Ruta no encontrada</h2>
-        <p className="text-gray-600 mt-2">La ruta que buscas no existe o ha sido eliminada.</p>
+        <h2 className="text-2xl font-bold text-white">Ruta no encontrada</h2>
+        <p className="text-gray-200 mt-2">La ruta que buscas no existe o ha sido eliminada.</p>
         <Button variant="primary" className="mt-4" onClick={() => navigate('/search')}>
           Volver a buscar
         </Button>
@@ -85,7 +85,7 @@ export function RouteDetailPage() {
       {/* Botón volver */}
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+        className="flex items-center gap-2 text-gray-200 hover:text-white transition-colors"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

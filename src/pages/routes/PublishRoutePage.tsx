@@ -102,8 +102,8 @@ export function PublishRoutePage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">¡Ruta Publicada!</h2>
-        <p className="text-gray-600 mt-2">Tu ruta ya está disponible para que otros estudiantes puedan reservarla.</p>
+        <h2 className="text-2xl font-bold text-white">¡Ruta Publicada!</h2>
+        <p className="text-gray-200 mt-2">Tu ruta ya está disponible para que otros estudiantes puedan reservarla.</p>
       </div>
     );
   }
@@ -111,8 +111,8 @@ export function PublishRoutePage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Publicar una Ruta</h1>
-        <p className="text-gray-600 mt-1">Comparte tu viaje y ayuda a otros estudiantes a ahorrar dinero</p>
+        <h1 className="text-2xl font-bold text-white">Publicar una Ruta</h1>
+        <p className="text-gray-200 mt-1">Comparte tu viaje y ayuda a otros estudiantes a ahorrar dinero</p>
       </div>
 
       {/* Pasos de progreso */}

@@ -9,7 +9,7 @@ export const mockUsers: User[] = [
     university: 'Universidad de los Andes',
     profilePicture: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
     averageRating: 4.8,
-    totalTrips: 23,
+    totalTrips: 3,
     createdAt: '2024-01-15',
   },
   {
@@ -364,7 +364,7 @@ export const mockService = {
 
   async getMessages(conversationId: string): Promise<Message[]> {
     await new Promise(resolve => setTimeout(resolve, 300));
-    return mockMessages[conversationId] || [];
+    return mockMessages[conversationId] ? [...mockMessages[conversationId]] : [];
   },
 
   async sendMessage(conversationId: string, content: string, senderId: string, receiverId: string): Promise<Message> {

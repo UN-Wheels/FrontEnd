@@ -80,8 +80,8 @@ export function BookingsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Mis Reservas</h1>
-        <p className="text-gray-600 mt-1">Gestiona tus viajes y solicitudes</p>
+        <h1 className="text-2xl font-bold text-white">Mis Reservas</h1>
+        <p className="text-gray-200 mt-1">Gestiona tus viajes y solicitudes</p>
       </div>
 
       {/* Tabs */}

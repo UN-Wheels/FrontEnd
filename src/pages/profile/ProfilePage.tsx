@@ -23,7 +23,7 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold text-gray-900">Mi Perfil</h1>
+      <h1 className="text-2xl font-bold text-white">Mi Perfil</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tarjeta de perfil */}

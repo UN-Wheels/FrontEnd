@@ -27,7 +27,7 @@ export function Avatar({ src, alt, size = 'md', className = '' }: AvatarProps) {
       <img
         src={src}
         alt={alt}
-        className={`${sizes[size]} rounded-full object-cover ring-2 ring-white ${className}`}
+        className={`${sizes[size]} rounded-full object-cover ring-2 ring-white/20 ${className}`}
       />
     );
   }

@@ -15,7 +15,7 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-secondary-dark via-secondary-medium to-secondary bg-fixed flex flex-col">
       <Topbar />
 
       <main className="flex-1 p-4 lg:p-8 overflow-auto">
