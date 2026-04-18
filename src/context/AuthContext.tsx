@@ -7,96 +7,117 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user for demo purposes
-const mockUser: User = {
-  id: '1',
-  fullName: 'Juan García',
-  email: 'juan.garcia@universidad.edu.co',
-  university: 'Universidad de los Andes',
-  profilePicture: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-  averageRating: 4.8,
-  totalTrips: 23,
-  createdAt: '2024-01-15',
-};
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  //Check sesión al cargar la app
   useEffect(() => {
-    // Check for existing token on mount
-    const token = localStorage.getItem('uniwheels_token');
-    if (token) {
-      // Simulate fetching user data
-      setUser(mockUser);
-    }
-    setIsLoading(false);
+    const fetchUser = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          credentials: "include",
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data);
+        } else {
+          setUser(null);
+        }
+      } catch {
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUser();
   }, []);
 
+  //LOGIN
   const login = async (credentials: LoginCredentials): Promise<void> => {
     setIsLoading(true);
+
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock validation
-      if (!credentials.email.includes('@') || credentials.password.length < 8) {
-        throw new Error('Invalid credentials');
+      const res = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(credentials),
+      });
+
+      if (!res.ok) {
+        throw new Error("Credenciales inválidas");
       }
 
-      // Store token
-      const mockToken = 'mock_jwt_token_' + Date.now();
-      if (credentials.rememberMe) {
-        localStorage.setItem('uniwheels_token', mockToken);
-      } else {
-        sessionStorage.setItem('uniwheels_token', mockToken);
+      //Obtener usuario después del login
+      const userRes = await fetch(`${API_URL}/api/auth/me`, {
+        credentials: "include",
+      });
+
+      if (!userRes.ok) {
+        throw new Error("No se pudo obtener el usuario");
       }
 
-      setUser(mockUser);
+      const userData = await userRes.json();
+      setUser(userData);
+
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (data: RegisterData): Promise<void> => {
-    setIsLoading(true);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Create mock user with registration data
-      const newUser: User = {
-        id: String(Date.now()),
-        fullName: data.fullName,
-        email: data.email,
-        university: data.university,
-        averageRating: 0,
-        totalTrips: 0,
-        createdAt: new Date().toISOString(),
-      };
+// REGISTER
+const register = async (data: RegisterData): Promise<void> => {
+  setIsLoading(true);
+  try {
+    const res = await fetch(`${API_URL}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      credentials: "include", // IMPORTANTE para el login automático posterior
+    });
 
-      // Store token
-      const mockToken = 'mock_jwt_token_' + Date.now();
-      localStorage.setItem('uniwheels_token', mockToken);
-
-      setUser(newUser);
-    } finally {
-      setIsLoading(false);
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || "Error al registrar usuario");
     }
-  };
 
-  const logout = () => {
-    localStorage.removeItem('uniwheels_token');
-    sessionStorage.removeItem('uniwheels_token');
+    await login({
+      email: data.email,
+      password: data.password,
+      rememberMe: true,
+    });
+  } catch (error) {
+    console.error(error);
+    throw error;
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  //LOGOUT
+  const logout = async (): Promise<void> => {
+    await fetch(`${API_URL}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+
     setUser(null);
   };
 
+  //UPDATE USER LOCAL
   const updateUser = (userData: Partial<User>) => {
     if (user) {
       setUser({ ...user, ...userData });
@@ -122,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
