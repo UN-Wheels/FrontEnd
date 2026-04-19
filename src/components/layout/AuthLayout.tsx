@@ -1,6 +1,7 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Loading } from '../ui/Loading';
+import logo from '../../assets/logo.png';
 
 export function AuthLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -14,32 +15,50 @@ export function AuthLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-secondary-dark via-secondary-medium to-secondary flex items-center justify-center p-4">
-      {/* Background pattern */}
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50" />
-      
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      style={{ background: 'linear-gradient(160deg, #07091a 0%, #0a0f28 50%, #0a1830 100%)' }}
+    >
+      {/* Dot-map background pattern */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='16' cy='16' r='1' fill='%2345acab' fill-opacity='0.10'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      {/* Ambient teal glow from top */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse 70% 45% at 50% -5%, rgba(69,172,171,0.13) 0%, transparent 65%)',
+        }}
+      />
+
       <div className="relative w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-4 shadow-lg">
-            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
-          </div>
-<<<<<<< HEAD
-          <h1 className="text-3xl font-bold text-white"><span className="text-primary">UN</span> Wheels</h1>
-=======
-          <h1 className="text-3xl font-bold text-white">UN Wheels</h1>
->>>>>>> 6c3bc753c6657ba631ffbe3125905755928eabc9
-          <p className="text-gray-300 mt-2">Viajen juntos, ahorren juntos</p>
+        <div className="text-center mb-7">
+          <img
+            src={logo}
+            alt="UN Wheels"
+            className="h-20 mx-auto animate-fade-in"
+            style={{ filter: 'drop-shadow(0 4px 20px rgba(69,172,171,0.35))' }}
+          />
         </div>
 
-        <div className="bg-[#151b3d] rounded-2xl shadow-xl p-8 animate-fade-in border border-white/5">
+        {/* Card */}
+        <div
+          className="rounded-2xl px-8 py-8 animate-fade-in relative"
+          style={{
+            background: 'linear-gradient(160deg, #0e1730 0%, #0b1226 100%)',
+            boxShadow: '0 30px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)',
+            borderTop: '1px solid rgba(69,172,171,0.45)',
+          }}
+        >
           <Outlet />
         </div>
 
-        <p className="text-center text-gray-400 text-sm mt-6">
-          &copy; {new Date().getFullYear()} UN Wheels. Todos los derechos reservados.
+        <p className="text-center text-xs mt-6" style={{ color: 'rgba(255,255,255,0.18)' }}>
+          &copy; {new Date().getFullYear()} UN Wheels &middot; Todos los derechos reservados
         </p>
       </div>
     </div>
