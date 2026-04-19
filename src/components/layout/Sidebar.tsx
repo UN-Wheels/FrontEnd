@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import logotype from '../../assets/logotype.png';
 
 interface NavItem {
   path: string;
@@ -89,16 +90,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         <div className="h-full flex flex-col">
           {/* Logo */}
-          <div className="flex items-center gap-3 px-6 py-5 border-b border-secondary-medium">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white"><span className="text-primary">UN</span> Wheels</h1>
-              <p className="text-xs text-gray-400">Viajen juntos, ahorren juntos</p>
-            </div>
+          <div className="flex items-center px-6 py-5 border-b border-secondary-medium">
+            <img src={logotype} alt="UN Wheels" className="h-8" />
           </div>
 
           {/* Navigation */}

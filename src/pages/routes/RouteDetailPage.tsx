@@ -29,6 +29,7 @@ export function RouteDetailPage() {
   const [seatsToBook, setSeatsToBook] = useState(1);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
 
   useEffect(() => {
     const fetchRoute = async () => {
@@ -46,6 +47,28 @@ export function RouteDetailPage() {
 
     fetchRoute();
   }, [id]);
+
+  useEffect(() => {
+    if (!route?.origin || !route?.destination) return;
+    fetch(
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${route.origin.lng},${route.origin.lat};${route.destination.lng},${route.destination.lat}` +
+      `?overview=full&geometries=geojson`
+    )
+      .then(r => r.json())
+      .then(data => {
+        const coords = data.routes[0].geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
+        );
+        setRouteCoords(coords);
+      })
+      .catch(() => {
+        setRouteCoords([
+          [route.origin.lat, route.origin.lng],
+          [route.destination.lat, route.destination.lng],
+        ]);
+      });
+  }, [route]);
 
   const handleBooking = async () => {
     if (!route) return;
@@ -186,13 +209,12 @@ export function RouteDetailPage() {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   />
-                  <Polyline
-                    positions={[
-                      [route.origin.lat, route.origin.lng],
-                      [route.destination.lat, route.destination.lng],
-                    ]}
-                    pathOptions={{ color: '#45acab', weight: 4, opacity: 0.85 }}
-                  />
+                  {routeCoords.length > 0 && (
+                    <Polyline
+                      positions={routeCoords}
+                      pathOptions={{ color: '#45acab', weight: 4, opacity: 0.85 }}
+                    />
+                  )}
                   <Marker position={[route.origin.lat, route.origin.lng]} icon={originIcon}>
                     <Popup>
                       <strong>Origen</strong>

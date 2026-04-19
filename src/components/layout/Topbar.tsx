@@ -3,6 +3,7 @@ import { useNavigate, NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../ui/Avatar';
 import { mockNotifications } from '../../services/mockData';
+import logotype from '../../assets/logotype.png';
 
 // Definimos los items de navegación aquí para que la Topbar sea autónoma
 const navItems = [
@@ -71,17 +72,8 @@ export function Topbar() {
       {/* Lado Izquierdo: Logo y Navegación Principal */}
       <div className="flex items-center gap-8">
         {/* Logo de UN Wheels */}
-        <Link to="/dashboard" className="flex items-center gap-2 group">
-          <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
-            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
-          </div>
-<<<<<<< HEAD
-          <span className="text-xl font-bold text-white hidden sm:block"><span className="text-primary">UN</span> Wheels</span>
-=======
-          <span className="text-xl font-bold text-white hidden sm:block">UN Wheels</span>
->>>>>>> 6c3bc753c6657ba631ffbe3125905755928eabc9
+        <Link to="/dashboard" className="group">
+          <img src={logotype} alt="UN Wheels" className="h-8 group-hover:opacity-90 transition-opacity" />
         </Link>
 
         {/* Navegación Horizontal (Desktop) */}
