@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardTitle, Button, Input, Select, LocationPicker } from '../../components/ui';
 import { useForm } from '../../hooks/useForm';
+import { routesService } from '../../services/routesService';
 import { ValidationError, Location } from '../../types';
 
-// Origin and destination are Location objects, not plain strings
 interface PublishRouteFormValues {
   date: string;
   time: string;
@@ -29,10 +29,11 @@ const vehicleBrands = [
 
 export function PublishRoutePage() {
   const navigate = useNavigate();
-  const [step, setStep]             = useState(1);
-  const [isSuccess, setIsSuccess]   = useState(false);
-  const [origin, setOrigin]         = useState<Location | null>(null);
-  const [destination, setDestination] = useState<Location | null>(null);
+  const [step, setStep]                 = useState(1);
+  const [isSuccess, setIsSuccess]       = useState(false);
+  const [submitError, setSubmitError]   = useState('');
+  const [origin, setOrigin]             = useState<Location | null>(null);
+  const [destination, setDestination]   = useState<Location | null>(null);
   const [locationErrors, setLocationErrors] = useState({ origin: '', destination: '' });
 
   const validateStep1Locations = () => {
@@ -45,7 +46,6 @@ export function PublishRoutePage() {
 
   const validateForm = (values: PublishRouteFormValues): ValidationError[] => {
     const errors: ValidationError[] = [];
-
     if (step === 1) {
       if (!origin)           errors.push({ field: 'origin',      message: 'El origen es obligatorio'  });
       if (!destination)      errors.push({ field: 'destination', message: 'El destino es obligatorio' });
@@ -55,40 +55,85 @@ export function PublishRoutePage() {
     if (step === 2) {
       if (!values.availableSeats) errors.push({ field: 'availableSeats', message: 'El número de cupos es obligatorio' });
       if (!values.price)          errors.push({ field: 'price',          message: 'El precio es obligatorio'          });
+      if (Number(values.price) < 0) errors.push({ field: 'price',        message: 'El precio debe ser mayor o igual a 0' });
     }
     if (step === 3) {
-      if (!values.vehicleBrand)        errors.push({ field: 'vehicleBrand',  message: 'La marca es obligatoria'  });
-      if (!values.vehicleModel.trim()) errors.push({ field: 'vehicleModel',  message: 'El modelo es obligatorio' });
-      if (!values.vehicleColor.trim()) errors.push({ field: 'vehicleColor',  message: 'El color es obligatorio'  });
-      if (!values.vehiclePlate.trim()) errors.push({ field: 'vehiclePlate',  message: 'La placa es obligatoria'  });
+      if (!values.vehicleBrand)        errors.push({ field: 'vehicleBrand', message: 'La marca es obligatoria'  });
+      if (!values.vehicleModel.trim()) errors.push({ field: 'vehicleModel', message: 'El modelo es obligatorio' });
+      if (!values.vehicleColor.trim()) errors.push({ field: 'vehicleColor', message: 'El color es obligatorio'  });
+      if (!values.vehiclePlate.trim()) errors.push({ field: 'vehiclePlate', message: 'La placa es obligatoria'  });
     }
     return errors;
   };
 
-  const { values, handleChange, handleSubmit, getFieldError, isSubmitting } = useForm<PublishRouteFormValues>({
-    initialValues: {
-      date: '', time: '', availableSeats: '3', price: '',
-      vehicleBrand: '', vehicleModel: '', vehicleColor: '', vehiclePlate: '',
-      vehicleYear: new Date().getFullYear().toString(),
-    },
-    validate: validateForm,
-    onSubmit: async () => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setIsSuccess(true);
-      setTimeout(() => navigate('/dashboard'), 2000);
-    },
-  });
+  const { values, handleChange, handleSubmit, getFieldError, isSubmitting } =
+    useForm<PublishRouteFormValues>({
+      initialValues: {
+        date: '', time: '', availableSeats: '3', price: '',
+        vehicleBrand: '', vehicleModel: '', vehicleColor: '', vehiclePlate: '',
+        vehicleYear: new Date().getFullYear().toString(),
+      },
+      validate: validateForm,
+      onSubmit: async (vals) => {
+        if (!origin || !destination) return;
+        setSubmitError('');
+
+        // Build departureTime ISO string from date + time inputs
+        const departureTime = new Date(`${vals.date}T${vals.time}:00`).toISOString();
+
+        // Step 1: Create the route
+        const newRoute = await routesService.createRoute({
+          origin: {
+            name: origin.address,
+            lat: origin.lat,
+            lng: origin.lng,
+          },
+          destination: {
+            name: destination.address,
+            lat: destination.lat,
+            lng: destination.lng,
+          },
+          departureTime,
+          pricePerSeat: Number(vals.price),
+          status: 'ACTIVE',
+        });
+
+        // Step 2: Add availability rule for the selected date
+        // The service expects "SPECIFIC_DATES" with the date at start-of-day UTC
+        const travelDate = new Date(`${vals.date}T00:00:00.000Z`).toISOString();
+        await routesService.addAvailabilityRule(newRoute.id, {
+          kind: 'SPECIFIC_DATES',
+          entries: [{ date: travelDate, seats: Number(vals.availableSeats) }],
+        });
+
+        setIsSuccess(true);
+        setTimeout(() => navigate('/dashboard'), 2000);
+      },
+    });
+
+  // Wrap handleSubmit to catch API errors and show them in UI
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    try {
+      await handleSubmit(e);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al publicar la ruta';
+      setSubmitError(msg);
+    }
+  };
 
   const handleNext = () => {
     if (step === 1) {
       const locOk = validateStep1Locations();
-      const formOk = validateForm(values).length === 0;
+      const formOk = validateForm(values).filter(e =>
+        e.field !== 'origin' && e.field !== 'destination'
+      ).length === 0;
       if (locOk && formOk) setStep(2);
     } else {
       if (validateForm(values).length === 0) setStep(step + 1);
     }
   };
 
+  // ── Success screen ─────────────────────────────────────────────────────────
   if (isSuccess) {
     return (
       <div className="max-w-md mx-auto text-center py-12 animate-fade-in">
@@ -98,37 +143,47 @@ export function PublishRoutePage() {
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-white">¡Ruta Publicada!</h2>
-        <p className="text-gray-200 mt-2">Tu ruta ya está disponible para que otros estudiantes puedan reservarla.</p>
+        <p className="text-gray-200 mt-2">
+          Tu ruta ya está disponible para que otros estudiantes puedan reservarla.
+        </p>
       </div>
     );
   }
 
+  // ── Main form ──────────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-white">Publicar una Ruta</h1>
-        <p className="text-gray-200 mt-1">Comparte tu viaje y ayuda a otros estudiantes a ahorrar dinero</p>
+        <p className="text-gray-200 mt-1">
+          Comparte tu viaje y ayuda a otros estudiantes a ahorrar dinero
+        </p>
       </div>
 
       {/* Progress steps */}
       <div className="flex items-center justify-center gap-4">
-        {[1, 2, 3].map((s) => (
+        {[1, 2, 3].map(s => (
           <div key={s} className="flex items-center">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-colors ${
-              step >= s ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'
-            }`}>
-              {step > s
-                ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                : s
-              }
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-colors ${
+                step >= s ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'
+              }`}
+            >
+              {step > s ? (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : s}
             </div>
-            {s < 3 && <div className={`w-20 h-1 mx-2 rounded ${step > s ? 'bg-primary' : 'bg-gray-200'}`} />}
+            {s < 3 && (
+              <div className={`w-20 h-1 mx-2 rounded ${step > s ? 'bg-primary' : 'bg-gray-200'}`} />
+            )}
           </div>
         ))}
       </div>
 
       <Card>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleFormSubmit}>
 
           {/* ── Step 1: Route details ── */}
           {step === 1 && (
@@ -141,7 +196,7 @@ export function PublishRoutePage() {
               <LocationPicker
                 label="Origen"
                 value={origin}
-                onChange={(loc) => { setOrigin(loc); setLocationErrors(e => ({ ...e, origin: '' })); }}
+                onChange={loc => { setOrigin(loc); setLocationErrors(e => ({ ...e, origin: '' })); }}
                 placeholder="Toca para seleccionar punto de partida"
                 error={locationErrors.origin}
               />
@@ -149,7 +204,7 @@ export function PublishRoutePage() {
               <LocationPicker
                 label="Destino"
                 value={destination}
-                onChange={(loc) => { setDestination(loc); setLocationErrors(e => ({ ...e, destination: '' })); }}
+                onChange={loc => { setDestination(loc); setLocationErrors(e => ({ ...e, destination: '' })); }}
                 placeholder="Toca para seleccionar punto de llegada"
                 error={locationErrors.destination}
               />
@@ -180,7 +235,9 @@ export function PublishRoutePage() {
           {step === 2 && (
             <div className="space-y-4">
               <CardTitle>Cupos y Precio</CardTitle>
-              <p className="text-gray-600 text-sm mb-4">¿Cuántos asientos tienes disponibles y cuál es el precio?</p>
+              <p className="text-gray-600 text-sm mb-4">
+                ¿Cuántos asientos tienes disponibles y cuál es el precio?
+              </p>
 
               <div className="grid grid-cols-2 gap-4">
                 <Select
@@ -211,7 +268,9 @@ export function PublishRoutePage() {
               {/* Route summary */}
               {origin && destination && (
                 <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Resumen de la ruta</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Resumen de la ruta
+                  </p>
                   <div className="flex items-start gap-3">
                     <div className="flex flex-col items-center pt-1 gap-1 flex-shrink-0">
                       <div className="w-3 h-3 rounded-full bg-primary" />
@@ -221,11 +280,15 @@ export function PublishRoutePage() {
                     <div className="space-y-2 min-w-0">
                       <div>
                         <p className="text-xs text-gray-500">Origen</p>
-                        <p className="text-sm font-medium text-gray-800 line-clamp-1">{origin.address}</p>
+                        <p className="text-sm font-medium text-gray-800 line-clamp-1">
+                          {origin.address}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Destino</p>
-                        <p className="text-sm font-medium text-gray-800 line-clamp-1">{destination.address}</p>
+                        <p className="text-sm font-medium text-gray-800 line-clamp-1">
+                          {destination.address}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -234,7 +297,8 @@ export function PublishRoutePage() {
 
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-600">
-                  <strong>Sugerencia:</strong> Elige un precio justo basado en la distancia. El promedio suele estar entre $5,000 y $10,000 COP por cupo.
+                  <strong>Sugerencia:</strong> Elige un precio justo basado en la distancia.
+                  El promedio suele estar entre $5,000 y $10,000 COP por cupo.
                 </p>
               </div>
             </div>
@@ -244,7 +308,14 @@ export function PublishRoutePage() {
           {step === 3 && (
             <div className="space-y-4">
               <CardTitle>Información del Vehículo</CardTitle>
-              <p className="text-gray-600 text-sm mb-4">Cuéntale a los pasajeros sobre tu vehículo</p>
+              <p className="text-gray-600 text-sm mb-4">
+                Cuéntale a los pasajeros sobre tu vehículo
+              </p>
+
+              {/* Info notice */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-700">
+                ℹ️ Esta información es solo para los pasajeros. El vehículo será visible en los detalles de la ruta en futuras versiones.
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <Select
@@ -293,6 +364,13 @@ export function PublishRoutePage() {
                   error={getFieldError('vehiclePlate')}
                 />
               </div>
+
+              {/* API error */}
+              {submitError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                  {submitError}
+                </div>
+              )}
             </div>
           )}
 

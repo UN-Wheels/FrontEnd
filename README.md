@@ -1,4 +1,4 @@
-# UniWheels Frontend
+# UN Wheels Frontend
 
 A modern React-based frontend application for UniWheels, a platform designed to connect university students for ride-sharing and route management.
 
@@ -17,8 +17,9 @@ A modern React-based frontend application for UniWheels, a platform designed to 
 - **Framework**: React 18 with TypeScript
 - **Build Tool**: Vite
 - **Styling**: Tailwind CSS with PostCSS
-- **Routing**: React Router DOM
+- **Routing**: React Router DOM v6
 - **State Management**: React Context API
+- **Maps**: Leaflet with React Leaflet
 - **Development Tools**: ESLint, TypeScript
 
 ## 📦 Installation
@@ -53,20 +54,33 @@ A modern React-based frontend application for UniWheels, a platform designed to 
 
 ```
 src/
+├── App.tsx                      # Main application component
+├── main.tsx                     # Application entry point
+├── index.css                    # Global styles
+├── vite-env.d.ts               # Vite environment types
+├── assets/                      # Static assets (images, icons, etc.)
 ├── components/
-│   ├── layout/          # Layout components (AuthLayout, DashboardLayout, etc.)
-│   └── ui/             # Reusable UI components (Button, Card, etc.)
-├── context/            # React contexts (AuthContext)
-├── hooks/              # Custom React hooks (useApi, useForm)
-├── pages/              # Page components
-│   ├── auth/           # Authentication pages
-│   ├── bookings/       # Booking related pages
-│   ├── chat/           # Chat functionality
-│   ├── dashboard/      # Dashboard page
-│   ├── profile/        # Profile management
-│   └── routes/         # Route search and management
-├── services/           # API services and mock data
-└── types/              # TypeScript type definitions
+│   ├── layout/                  # Layout components (Header, Sidebar, etc.)
+│   └── ui/                      # Reusable UI components (Button, Card, Form, etc.)
+├── context/
+│   ├── AuthContext.tsx          # Authentication state management
+│   └── mockAuthContext.tsx      # Mock authentication for testing
+├── hooks/
+│   ├── useApi.ts                # Custom hook for API requests
+│   └── useForm.ts               # Custom hook for form handling
+├── pages/
+│   ├── auth/                    # Authentication pages (Login, Register, etc.)
+│   ├── bookings/                # Ride bookings pages
+│   ├── chat/                    # Chat and messaging functionality
+│   ├── dashboard/               # User dashboard
+│   ├── landing/                 # Landing page
+│   ├── profile/                 # User profile management
+│   └── routes/                  # Route search and management
+├── services/
+│   ├── api.ts                   # API client and request handling
+│   ├── mockData.ts              # Mock data for development
+│   └── index.ts                 # Services exports
+└── types/                       # TypeScript type definitions
 ```
 
 ## 🔧 Development
