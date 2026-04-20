@@ -5,3 +5,4 @@ export * from './profile';
 export * from './routes';
 export * from './bookings';
 export * from './chat';
+export * from './my-routes';

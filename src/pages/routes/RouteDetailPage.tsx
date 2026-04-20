@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet';
 import { Card, CardTitle, Button, Badge, Loading, Modal } from '../../components/ui';
 import { routesService, reservationsService, ApiRoute, RouteSlot } from '../../services/routesService';
+import { useAuth } from '../../context/AuthContext';
 
 const originIcon = L.divIcon({
   className: '',
@@ -19,9 +20,12 @@ const destinationIcon = L.divIcon({
   iconAnchor: [9, 9],
 });
 
+const shortAddr = (addr: string) => addr.split(',')[0].trim();
+
 export function RouteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [route, setRoute]               = useState<ApiRoute | null>(null);
   const [slots, setSlots]               = useState<RouteSlot[]>([]);
@@ -211,11 +215,13 @@ export function RouteDetailPage() {
               <div className="flex-1">
                 <div>
                   <p className="text-sm text-gray-500 uppercase tracking-wide">Origen</p>
-                  <p className="text-xl font-semibold text-gray-900">{route.origin.address}</p>
+                  <p className="text-xl font-semibold text-gray-900">{shortAddr(route.origin.address)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{route.origin.address}</p>
                 </div>
                 <div className="mt-8">
                   <p className="text-sm text-gray-500 uppercase tracking-wide">Destino</p>
-                  <p className="text-xl font-semibold text-gray-900">{route.destination.address}</p>
+                  <p className="text-xl font-semibold text-gray-900">{shortAddr(route.destination.address)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{route.destination.address}</p>
                 </div>
               </div>
             </div>
@@ -240,32 +246,6 @@ export function RouteDetailPage() {
               </div>
             </div>
           </Card>
-
-          {/* Available slots calendar */}
-          {slots.length > 0 && (
-            <Card>
-              <CardTitle>Días con Cupos Disponibles</CardTitle>
-              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {slots.map(slot => (
-                  <div
-                    key={slot.date}
-                    className="border border-gray-200 rounded-xl p-3 text-center hover:border-primary hover:bg-primary/5 transition-colors cursor-pointer"
-                    onClick={handleOpenModal}
-                  >
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
-                      {formatDateShort(slot.date)}
-                    </p>
-                    <p className="text-sm font-bold text-green-600 mt-1">
-                      {slot.availableSeats} libre{slot.availableSeats !== 1 ? 's' : ''}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      de {slot.totalSeats} cupos
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
 
           {/* Map */}
           <Card>
@@ -307,6 +287,7 @@ export function RouteDetailPage() {
               </MapContainer>
             </div>
           </Card>
+
         </div>
 
         {/* ── Sidebar ── */}
@@ -314,16 +295,31 @@ export function RouteDetailPage() {
           {/* Driver info */}
           <Card>
             <CardTitle>Conductor</CardTitle>
-            <div className="mt-4 text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mt-3">Conductor</h3>
-              <p className="text-xs text-gray-400 mt-1 break-all">{route.driverId}</p>
-            </div>
+            {(() => {
+              // driverId stores the user's email (JWT sub field), not numeric id
+              const isOwnRoute = user && route.driverId === user.email;
+              return (
+                <div className="mt-4 text-center">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                    <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  {isOwnRoute ? (
+                    <>
+                      <h3 className="text-base font-semibold text-gray-900 mt-3">{user.fullName}</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">{user.email}</p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-base font-semibold text-gray-900 mt-3">Conductor</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">Universidad Nacional de Colombia</p>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="mt-6 space-y-3">
               <Button
@@ -344,24 +340,58 @@ export function RouteDetailPage() {
             </div>
           </Card>
 
-          {/* Price summary */}
+          {/* Price */}
           <Card>
-            <CardTitle>Resumen del Precio</CardTitle>
-            <div className="mt-4 space-y-3">
-              <div className="flex justify-between text-gray-600">
-                <span>Precio por cupo</span>
-                <span>${route.price.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Tarifa de servicio</span>
-                <span>$0</span>
-              </div>
-              <div className="border-t border-gray-100 pt-3 flex justify-between font-semibold text-gray-900">
-                <span>Total por cupo</span>
-                <span className="text-primary">${route.price.toLocaleString()}</span>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Precio por cupo</span>
+              <span className="text-2xl font-bold text-primary">${route.price.toLocaleString()}</span>
             </div>
           </Card>
+
+          {/* Available slots */}
+          {slots.length > 0 && (
+            <Card>
+              <CardTitle>Días con Cupos</CardTitle>
+              <div className="mt-3 space-y-3">
+                {slots.map(slot => (
+                  <div
+                    key={slot.date}
+                    className="p-3 bg-gray-50 border border-gray-100 rounded-xl hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm transition-all cursor-pointer group"
+                    onClick={() => {
+                      setSelectedDate(slot.date.split('T')[0]);
+                      setBookingError('');
+                      setBookingSuccess(false);
+                      setShowBookingModal(true);
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center group-hover:border-primary/30 transition-colors">
+                          <svg className="w-4 h-4 text-gray-400 group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800 capitalize leading-tight">
+                            {formatDateShort(slot.date)}
+                          </p>
+                          <p className="text-xs text-gray-400">Disponible</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-primary leading-tight">
+                          {slot.availableSeats}
+                          <span className="text-xs font-normal text-gray-400">/{slot.totalSeats}</span>
+                        </p>
+                        <p className="text-xs text-gray-400">cupos</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -387,7 +417,7 @@ export function RouteDetailPage() {
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-500">Ruta</p>
               <p className="font-medium text-gray-900">
-                {route.origin.address} → {route.destination.address}
+                {shortAddr(route.origin.address)} → {shortAddr(route.destination.address)}
               </p>
               <p className="text-sm text-gray-500 mt-2">Hora de salida</p>
               <p className="font-medium text-gray-900">{formatDateLong(route.departureTime)}</p>

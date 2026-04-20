@@ -26,9 +26,13 @@ export interface LoginCredentials {
 export interface RegisterData {
   fullName: string;
   email: string;
-  university: string;
   password: string;
   confirmPassword: string;
+  phone_number: string;
+  gender: 'masculino' | 'femenino' | 'otro';
+  major: string;
+  age: number;
+  role: 'estudiante' | 'docente';
 }
 
 // Location type (coordinates + human-readable address)

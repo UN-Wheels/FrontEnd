@@ -101,11 +101,13 @@ export function SearchRoutesPage() {
               placeholder="Origen (seleccionar en mapa)"
               value={originFilter}
               onChange={setOriginFilter}
+              autoGeolocate
             />
             <LocationPicker
               placeholder="Destino (seleccionar en mapa)"
               value={destinationFilter}
               onChange={setDestinationFilter}
+              defaultCenter={[4.6356, -74.0843]}
             />
             <Input
               name="date"
@@ -199,7 +201,7 @@ export function SearchRoutesPage() {
           action={
             hasFilters
               ? { label: 'Limpiar filtros', onClick: handleClearFilters }
-              : { label: 'Publicar una ruta', onClick: () => navigate('/routes/publish') }
+              : { label: 'Publicar una ruta', onClick: () => navigate('/publish') }
           }
         />
       ) : (
@@ -219,41 +221,33 @@ export function SearchRoutesPage() {
                 onClick={() => navigate(`/routes/${route.id}`)}
                 className="cursor-pointer"
               >
-                {/* Driver placeholder — el backend retorna driverId, no el objeto */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate text-sm">Conductor</p>
-                    <p className="text-xs text-gray-400 truncate">{route.driverId}</p>
-                  </div>
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                    Activa
-                  </span>
-                </div>
-
                 {/* Route */}
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-3 rounded-full bg-primary" />
+                    <div className="flex flex-col items-center pt-1">
+                      <div className="w-3 h-3 rounded-full bg-primary flex-shrink-0" />
                       <div className="w-0.5 h-8 bg-gray-200" />
-                      <div className="w-3 h-3 rounded-full bg-secondary" />
+                      <div className="w-3 h-3 rounded-full bg-secondary flex-shrink-0" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Origen</p>
-                      <p className="font-medium text-gray-900 text-sm line-clamp-1">
-                        {route.origin.address}
+                      <p
+                        className="font-medium text-gray-900 text-sm truncate"
+                        title={route.origin.address}
+                      >
+                        {route.origin.address.split(',')[0].trim()}
                       </p>
                       <p className="text-xs text-gray-500 uppercase tracking-wide mt-3">Destino</p>
-                      <p className="font-medium text-gray-900 text-sm line-clamp-1">
-                        {route.destination.address}
+                      <p
+                        className="font-medium text-gray-900 text-sm truncate"
+                        title={route.destination.address}
+                      >
+                        {route.destination.address.split(',')[0].trim()}
                       </p>
                     </div>
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                      Activa
+                    </span>
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100">

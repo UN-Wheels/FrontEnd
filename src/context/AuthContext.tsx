@@ -100,7 +100,16 @@ const register = async (data: RegisterData): Promise<void> => {
     const res = await fetch(`${API_URL}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: data.fullName, email: data.email, password: data.password }),
+      body: JSON.stringify({
+        name: data.fullName,
+        email: data.email,
+        password: data.password,
+        phone_number: data.phone_number,
+        gender: data.gender,
+        major: data.major,
+        age: data.age,
+        role: data.role,
+      }),
       credentials: "include", // IMPORTANTE para el login automático posterior
     });
 

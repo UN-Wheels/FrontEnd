@@ -1,32 +1,33 @@
-// Base API configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
- 
+// Cuando VITE_API_URL está vacío (dev local), usar path relativo para que
+// el proxy de Vite intercepte /api/* → localhost:8080 (api-gateway).
+// Vacío en .env.local → Vite proxea /api → localhost:8080 (dev)
+// Vacío en Docker build → nginx proxea /api → api-gateway (prod)
+// Con valor explícito → URL absoluta (útil si el gateway está en otro host)
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
+
 interface RequestConfig extends RequestInit {
   params?: Record<string, string>;
 }
- 
+
 class ApiService {
   private baseUrl: string;
- 
+
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
   }
- 
-  /**
-   * La autenticación funciona con cookies HttpOnly (set por el gateway en el login).
-   * Se envía credentials:'include' en cada request para que el navegador adjunte
-   * la cookie automáticamente. El Bearer token de localStorage es fallback por si
-   * algún flujo lo almacena explícitamente.
-   */
+
   private getAuthHeaders(): HeadersInit {
     const token =
       localStorage.getItem('uniwheels_token') ||
       sessionStorage.getItem('uniwheels_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
- 
+
   private buildUrl(endpoint: string, params?: Record<string, string>): string {
-    const url = new URL(`${this.baseUrl}${endpoint}`);
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const url = new URL(`${this.baseUrl}${endpoint}`, origin);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== '') url.searchParams.append(key, value);

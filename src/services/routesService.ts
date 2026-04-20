@@ -141,6 +141,21 @@ export type AvailabilityRule =
       seatsPerOccurrence: number;
     };
 
+export interface AvailabilityRuleItem {
+  _id: string;
+  kind: 'SPECIFIC_DATES' | 'WEEKLY_RECURRENCE';
+  entries?: { date: string; seats: number }[];
+  weekdays?: number[];
+  rangeStart?: string;
+  rangeEnd?: string;
+  seatsPerOccurrence?: number;
+}
+
+export interface AvailabilityData {
+  rules: AvailabilityRuleItem[];
+  slots: RouteSlot[];
+}
+
 // ─── Servicio de rutas ────────────────────────────────────────────────────────
 
 export const routesService = {
@@ -188,6 +203,14 @@ export const routesService = {
   async createRoute(payload: CreateRoutePayload): Promise<ApiRoute> {
     const data = await api.post<BackendRoute>(ROUTES_BASE, payload);
     return mapRoute(data);
+  },
+
+  /**
+   * GET /routes/:id/availability
+   * Lista las reglas y slots de disponibilidad de una ruta (solo el propietario).
+   */
+  getAvailabilityRules(routeId: string): Promise<AvailabilityData> {
+    return api.get(`${ROUTES_BASE}/${routeId}/availability`);
   },
 
   /**
