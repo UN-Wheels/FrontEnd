@@ -50,51 +50,46 @@ export function PublishRoutePage() {
     return errors;
   };
 
-  const { values, handleChange, handleSubmit, getFieldError, isSubmitting } =
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { values, handleChange, getFieldError } =
     useForm<PublishRouteFormValues>({
       initialValues: {
         date: '', time: '', availableSeats: '3', price: '',
       },
       validate: validateForm,
-      onSubmit: async (vals) => {
-        if (!origin || !destination) return;
-        setSubmitError('');
-
-        const departureTime = new Date(`${vals.date}T${vals.time}:00`).toISOString();
-
-        const newRoute = await routesService.createRoute({
-          origin: {
-            name: origin.address,
-            lat: origin.lat,
-            lng: origin.lng,
-          },
-          destination: {
-            name: destination.address,
-            lat: destination.lat,
-            lng: destination.lng,
-          },
-          departureTime,
-          pricePerSeat: Number(vals.price),
-          status: 'ACTIVE',
-        });
-
-        const travelDate = new Date(`${vals.date}T00:00:00.000Z`).toISOString();
-        await routesService.addAvailabilityRule(newRoute.id, {
-          kind: 'SPECIFIC_DATES',
-          entries: [{ date: travelDate, seats: Number(vals.availableSeats) }],
-        });
-
-        setCreatedRouteId(newRoute.id);
-        setIsSuccess(true);
-      },
+      onSubmit: async () => {},
     });
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  const handlePublish = async () => {
+    if (!origin || !destination) return;
+    setSubmitError('');
+    setIsSubmitting(true);
     try {
-      await handleSubmit(e);
+      const departureTime = new Date(`${values.date}T${values.time}:00`).toISOString();
+
+      const newRoute = await routesService.createRoute({
+        origin: { name: origin.address, lat: origin.lat, lng: origin.lng },
+        destination: { name: destination.address, lat: destination.lat, lng: destination.lng },
+        departureTime,
+        pricePerSeat: Number(values.price),
+        status: 'ACTIVE',
+        vehicleId: vehicleId !== null ? String(vehicleId) : undefined,
+      });
+
+      const travelDate = new Date(`${values.date}T00:00:00.000Z`).toISOString();
+      await routesService.addAvailabilityRule(newRoute.id, {
+        kind: 'SPECIFIC_DATES',
+        entries: [{ date: travelDate, seats: Number(values.availableSeats) }],
+      });
+
+      setCreatedRouteId(newRoute.id);
+      setIsSuccess(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al publicar la ruta';
       setSubmitError(msg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -184,7 +179,7 @@ export function PublishRoutePage() {
       </div>
 
       <Card>
-        <form onSubmit={handleFormSubmit}>
+        <form onSubmit={e => e.preventDefault()}>
 
           {/* Step 1: Route details */}
           {step === 1 && (
@@ -342,7 +337,7 @@ export function PublishRoutePage() {
                 Continuar
               </Button>
             ) : (
-              <Button type="submit" variant="primary" isLoading={isSubmitting}>
+              <Button type="button" variant="primary" isLoading={isSubmitting} onClick={handlePublish}>
                 Publicar Ruta
               </Button>
             )}

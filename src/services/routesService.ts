@@ -26,6 +26,7 @@ interface BackendLocation {
 export interface BackendRoute {
   _id: string;
   driverId: string;
+  vehicleId?: string;
   origin: BackendLocation;
   destination: BackendLocation;
   departureTime: string;
@@ -57,6 +58,7 @@ export interface ApiLocation {
 export interface ApiRoute {
   id: string;
   driverId: string;
+  vehicleId?: string;
   origin: ApiLocation;
   destination: ApiLocation;
   departureTime: string;
@@ -88,6 +90,7 @@ export function mapRoute(r: BackendRoute): ApiRoute {
   return {
     id: r._id,
     driverId: r.driverId,
+    vehicleId: r.vehicleId,
     origin: {
       address: r.origin.name,
       lat: r.origin.lat,
@@ -126,6 +129,7 @@ export interface CreateRoutePayload {
   departureTime: string;
   pricePerSeat: number;
   status?: 'ACTIVE' | 'INACTIVE';
+  vehicleId?: string;
 }
 
 export type AvailabilityRule =
@@ -227,6 +231,7 @@ export const routesService = {
   async updateRoute(
     id: string,
     data: Partial<{
+      vehicleId: string | null;
       origin: { name: string; lat: number; lng: number };
       destination: { name: string; lat: number; lng: number };
       departureTime: string;

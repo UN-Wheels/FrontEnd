@@ -11,7 +11,7 @@ interface VehicleFormProps {
 export function VehicleForm({ onSubmit, onCancel, isLoading = false }: VehicleFormProps) {
   const [values, setValues] = useState({
     plate: '',
-    vehicle_type: '',
+    vehicle_type: 'Carro',
     brand: '',
     model: '',
     color: '',
@@ -24,8 +24,7 @@ export function VehicleForm({ onSubmit, onCancel, isLoading = false }: VehicleFo
     setErrors(e => ({ ...e, [field]: '' }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async () => {
     const newErrors: Record<string, string> = {};
     if (!values.plate.trim()) newErrors.plate = 'La placa es obligatoria';
     if (!values.vehicle_type) newErrors.vehicle_type = 'Selecciona un tipo';
@@ -42,7 +41,7 @@ export function VehicleForm({ onSubmit, onCancel, isLoading = false }: VehicleFo
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <Input
           label="Placa"
@@ -100,10 +99,10 @@ export function VehicleForm({ onSubmit, onCancel, isLoading = false }: VehicleFo
             Cancelar
           </Button>
         )}
-        <Button type="submit" variant="primary" size="sm" isLoading={isLoading} className="flex-1">
+        <Button type="button" variant="primary" size="sm" isLoading={isLoading} onClick={handleSave} className="flex-1">
           Guardar vehículo
         </Button>
       </div>
-    </form>
+    </div>
   );
 }

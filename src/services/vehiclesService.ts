@@ -23,11 +23,11 @@ export interface CreateVehiclePayload {
 
 export const vehiclesService = {
   async getMyVehicles(): Promise<Vehicle[]> {
-    return api.get<Vehicle[]>('/vehicles');
+    return api.get<Vehicle[]>('/vehicles/');
   },
 
   async createVehicle(data: CreateVehiclePayload): Promise<Vehicle> {
-    return api.post<Vehicle>('/vehicles', data);
+    return api.post<Vehicle>('/vehicles/', data);
   },
 
   async deleteVehicle(id: number): Promise<void> {
