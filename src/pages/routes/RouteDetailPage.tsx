@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { Card, CardTitle, Button, Avatar, StarRating, Badge, Loading, Modal } from '../../components/ui';
+import { Card, CardTitle, Button, Avatar, Badge, Loading, Modal } from '../../components/ui';
 import { mockService } from '../../services/mockData';
 import { Route } from '../../types';
 
@@ -279,11 +279,6 @@ export function RouteDetailPage() {
                 className="w-20 h-20 mx-auto"
               />
               <h3 className="text-lg font-semibold text-gray-900 mt-3">{route.driver.fullName}</h3>
-              <p className="text-sm text-gray-500">{route.driver.university}</p>
-              <div className="flex items-center justify-center gap-1 mt-2">
-                <StarRating rating={route.driver.averageRating} size="sm" showValue />
-              </div>
-              <p className="text-sm text-gray-500 mt-1">{route.driver.totalTrips} viajes completados</p>
             </div>
 
             <div className="mt-6 space-y-3">

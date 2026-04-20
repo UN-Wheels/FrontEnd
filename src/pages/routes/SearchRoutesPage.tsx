@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Input, Avatar, StarRating, Loading, EmptyState, LocationPicker } from '../../components/ui';
+import { Card, Button, Input, Avatar, Loading, EmptyState, LocationPicker } from '../../components/ui';
 import { mockService } from '../../services/mockData';
 import { Route, Location } from '../../types';
 
@@ -142,10 +142,6 @@ export function SearchRoutesPage() {
                   <Avatar src={route.driver.profilePicture} alt={route.driver.fullName} size="md" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 truncate">{route.driver.fullName}</p>
-                    <div className="flex items-center gap-1">
-                      <StarRating rating={route.driver.averageRating} size="sm" />
-                      <span className="text-sm text-gray-500">({route.driver.totalTrips} viajes)</span>
-                    </div>
                   </div>
                 </div>
 

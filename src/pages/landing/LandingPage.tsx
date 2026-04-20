@@ -508,7 +508,6 @@ export function LandingPage() {
                   <div>
                     <p className="text-sm font-bold text-gray-900">{t.name}</p>
                     <p className="text-xs font-medium text-primary">{t.role}</p>
-                    <p className="text-xs text-gray-400">{t.university}</p>
                   </div>
                 </div>
               </div>

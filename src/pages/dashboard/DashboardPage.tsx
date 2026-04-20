@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Card, CardTitle, Button, Avatar, StarRating, Badge } from '../../components/ui';
-import { mockRoutes, mockBookings, mockTripHistory } from '../../services/mockData';
+import { Card, CardTitle, Button, Avatar, Badge } from '../../components/ui';
+import { mockRoutes, mockBookings } from '../../services/mockData';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -9,12 +9,6 @@ export function DashboardPage() {
 
   const upcomingTrips = mockBookings.filter(b => b.status === 'CONFIRMED').slice(0, 3);
   const recentRoutes = mockRoutes.slice(0, 3);
-  const stats = {
-    totalTrips: mockTripHistory.length,
-    savedMoney: mockTripHistory.length * 5000,
-    co2Saved: mockTripHistory.length * 2.5,
-    rating: user?.averageRating || 0,
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -34,69 +28,6 @@ export function DashboardPage() {
             Publicar Ruta
           </Button>
         </div>
-      </div>
-
-      {/* Tarjetas de estadísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-primary to-primary-dark text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-white/80 text-sm">Total de Viajes</p>
-              <p className="text-3xl font-bold mt-1">{stats.totalTrips}</p>
-            </div>
-            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-              </svg>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Dinero Ahorrado</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
-                ${stats.savedMoney.toLocaleString('es-CO')}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Algo</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1"> xd</p>
-            </div>
-            <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                
-              </svg>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Tu Calificación</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-3xl font-bold text-gray-900">{stats.rating.toFixed(1)}</span>
-                <StarRating rating={stats.rating} size="sm" />
-              </div>
-            </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-              </svg>
-            </div>
-          </div>
-        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -175,11 +106,7 @@ export function DashboardPage() {
                   <p className="font-medium text-gray-900 truncate">
                     {route.origin.address} → {route.destination.address}
                   </p>
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <span>{route.driver.fullName}</span>
-                    <span>•</span>
-                    <StarRating rating={route.driver.averageRating} size="sm" />
-                  </div>
+                  <p className="text-sm text-gray-500">{route.driver.fullName}</p>
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-gray-900">${route.price.toLocaleString('es-CO')}</p>

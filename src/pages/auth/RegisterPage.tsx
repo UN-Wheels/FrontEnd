@@ -7,19 +7,9 @@ import { ValidationError } from '../../types';
 interface RegisterFormValues {
   fullName: string;
   email: string;
-  university: string;
   password: string;
   confirmPassword: string;
 }
-
-const universities = [
-  { value: 'uandes', label: 'Universidad de los Andes' },
-  { value: 'javeriana', label: 'Pontificia Universidad Javeriana' },
-  { value: 'unal', label: 'Universidad Nacional de Colombia' },
-  { value: 'rosario', label: 'Universidad del Rosario' },
-  { value: 'sabana', label: 'Universidad de la Sabana' },
-  { value: 'externado', label: 'Universidad Externado de Colombia' },
-];
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -40,9 +30,6 @@ export function RegisterPage() {
     } else if (!values.email.toLowerCase().endsWith('@unal.edu.co')) {
       errors.push({ field: 'email', message: 'Solo se permiten correos @unal.edu.co' });
     }
-    if (!values.university) {
-      errors.push({ field: 'university', message: 'Seleccione su universidad' });
-    }
     if (!values.password) {
       errors.push({ field: 'password', message: 'La contraseña es obligatoria' });
     } else if (values.password.length < 8) {
@@ -57,7 +44,7 @@ export function RegisterPage() {
   };
 
   const { values, handleChange, handleSubmit, getFieldError, isSubmitting } = useForm<RegisterFormValues>({
-    initialValues: { fullName: '', email: '', university: '', password: '', confirmPassword: '' },
+    initialValues: { fullName: '', email: '', password: '', confirmPassword: '' },
     validate: validateForm,
     onSubmit: async (formValues) => {
       try {
@@ -65,8 +52,7 @@ export function RegisterPage() {
         await register({
           fullName: formValues.fullName,
           email: formValues.email,
-          university: formValues.university,
-          password: formValues.password,
+password: formValues.password,
           confirmPassword: formValues.confirmPassword,
         });
         navigate('/dashboard');
@@ -129,38 +115,6 @@ export function RegisterPage() {
           />
           {getFieldError('email') && (
             <p className="mt-1.5 text-xs text-red-400">{getFieldError('email')}</p>
-          )}
-        </div>
-
-        {/* Universidad */}
-        <div>
-          <label htmlFor="university" className="auth-label">Universidad</label>
-          <div className="relative">
-            <select
-              id="university"
-              name="university"
-              value={values.university}
-              onChange={handleChange}
-              className={`auth-input pr-10 ${getFieldError('university') ? 'auth-input-error' : ''}`}
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='rgba(255,255,255,0.35)' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: 'right 0.75rem center',
-                backgroundRepeat: 'no-repeat',
-                backgroundSize: '1.25em 1.25em',
-              }}
-            >
-              <option value="" disabled style={{ background: '#0e1730', color: 'rgba(255,255,255,0.5)' }}>
-                Selecciona tu universidad
-              </option>
-              {universities.map((u) => (
-                <option key={u.value} value={u.value} style={{ background: '#0e1730', color: 'white' }}>
-                  {u.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {getFieldError('university') && (
-            <p className="mt-1.5 text-xs text-red-400">{getFieldError('university')}</p>
           )}
         </div>
 

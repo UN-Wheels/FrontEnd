@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Card, CardTitle, Button, Input, Avatar, StarRating, Badge, Modal } from '../../components/ui';
+import { Card, CardTitle, Button, Input, Avatar, Badge, Modal } from '../../components/ui';
 import { mockTripHistory } from '../../services/mockData';
 
 export function ProfilePage() {
@@ -14,11 +14,6 @@ export function ProfilePage() {
   const handleSave = () => {
     updateUser(editData);
     setIsEditing(false);
-  };
-
-  const tripsByRole = {
-    asPassenger: mockTripHistory.filter(t => t.role === 'PASSENGER'),
-    asDriver: mockTripHistory.filter(t => t.role === 'DRIVER'),
   };
 
   return (
@@ -49,28 +44,6 @@ export function ProfilePage() {
 
             <h2 className="text-xl font-bold text-gray-900 mt-4">{user?.fullName}</h2>
             <p className="text-gray-500">{user?.email}</p>
-            <p className="text-sm text-gray-400 mt-1">{user?.university}</p>
-
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <StarRating rating={user?.averageRating || 0} size="md" showValue />
-            </div>
-
-            <div className="flex justify-center gap-4 mt-6">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{user?.totalTrips}</p>
-                <p className="text-sm text-gray-500">Viajes Totales</p>
-              </div>
-              <div className="w-px bg-gray-200" />
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{tripsByRole.asDriver.length}</p>
-                <p className="text-sm text-gray-500">Como Conductor</p>
-              </div>
-              <div className="w-px bg-gray-200" />
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{tripsByRole.asPassenger.length}</p>
-                <p className="text-sm text-gray-500">Como Pasajero</p>
-              </div>
-            </div>
 
             <div className="mt-6 pt-6 border-t border-gray-100">
               <Button variant="outline" className="w-full" onClick={() => setIsEditing(true)}>
@@ -121,11 +94,6 @@ export function ProfilePage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    {trip.rating && (
-                      <div className="flex items-center gap-1">
-                        <StarRating rating={trip.rating} size="sm" />
-                      </div>
-                    )}
                     <p className="text-sm text-gray-500 mt-1">
                       ${trip.route.price.toLocaleString('es-CO')}
                     </p>
