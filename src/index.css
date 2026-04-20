@@ -197,3 +197,17 @@ html {
   color: rgba(255, 255, 255, 0.38);
   margin-bottom: 0.5rem;
 }
+/* Fix select option colors in dark auth forms */
+.auth-input option {
+  background: #1a2035;
+  color: rgba(255, 255, 255, 0.88);
+}
+/* Remove number input spinners globally */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}

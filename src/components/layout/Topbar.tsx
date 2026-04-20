@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate, NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../ui/Avatar';
-import { mockNotifications } from '../../services/mockData';
 import logotype from '../../assets/logotype.png';
 
 // Definimos los items de navegación aquí para que la Topbar sea autónoma
@@ -57,10 +56,7 @@ const navItems = [
 export function Topbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-
-  const unreadCount = mockNotifications.filter(n => !n.isRead).length;
 
   const handleLogout = () => {
     logout();
@@ -100,45 +96,6 @@ export function Topbar() {
       {/* Lado Derecho: Notificaciones y Usuario */}
       <div className="flex items-center gap-3">
 
-
-        {/* Notificaciones */}
-        <div className="relative">
-          <button
-            className="p-2 rounded-lg hover:bg-[#45acab] transition-colors relative"
-            onClick={() => setShowNotifications(!showNotifications)}
-          >
-            <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center border-2 border-white">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-
-          {/* Dropdown Notificaciones (Igual al anterior) */}
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 py-2 animate-fade-in overflow-hidden">
-              <div className="px-4 py-2 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-900">Notificaciones</h3>
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {mockNotifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`px-4 py-3 hover:bg-gray-50 cursor-pointer ${
-                      !notification.isRead ? 'bg-primary/5' : ''
-                    }`}
-                  >
-                    <p className="text-sm font-medium text-gray-900">{notification.title}</p>
-                    <p className="text-sm text-gray-500 mt-0.5">{notification.message}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Menú de Usuario */}
         <div className="relative">

@@ -22,6 +22,25 @@ services:
       - COOKIE_MAX_AGE=1800
     depends_on:
       - auth-service
+      - routes-service
+
+  routes-service:
+    build: ../routes-reservations-service
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - MONGO_URI=mongodb://mongo:27017/routesdb
+      - JWT_SECRET=super_secret_key_change_me
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/var/lib/mongodb/data
 
   auth-service:
     build: ../loggueo_service
@@ -54,3 +73,4 @@ services:
 
 volumes:
   postgres_data:
+  mongo_data:

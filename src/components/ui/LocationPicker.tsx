@@ -45,6 +45,14 @@ function FlyTo({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
+function GeoFlyTo({ center }: { center: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) map.flyTo(center, 15, { duration: 0.8 });
+  }, [center, map]);
+  return null;
+}
+
 // ── Debounce hook ────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -62,26 +70,38 @@ export interface LocationPickerProps {
   onChange: (loc: Location | null) => void;
   placeholder?: string;
   error?: string;
+  autoGeolocate?: boolean;
+  defaultCenter?: [number, number];
 }
 
 const BOGOTA: [number, number] = [4.6097, -74.0817];
 
-export function LocationPicker({ label, value, onChange, placeholder, error }: LocationPickerProps) {
+export function LocationPicker({ label, value, onChange, placeholder, error, autoGeolocate, defaultCenter }: LocationPickerProps) {
   const [open, setOpen]                 = useState(false);
   const [temp, setTemp]                 = useState<Location | null>(null);
   const [query, setQuery]               = useState('');
   const [suggestions, setSuggestions]   = useState<NominatimResult[]>([]);
   const [searching, setSearching]       = useState(false);
   const [reversing, setReversing]       = useState(false);
+  const [geoCenter, setGeoCenter]       = useState<[number, number] | null>(null);
 
   const debouncedQuery = useDebounce(query, 600);
 
-  // Open: snapshot current value into temp
+  // Open: snapshot current value into temp, optionally geolocate
   const handleOpen = () => {
     setTemp(value);
     setQuery('');
     setSuggestions([]);
+    setGeoCenter(null);
     setOpen(true);
+
+    if (autoGeolocate && !value && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setGeoCenter([pos.coords.latitude, pos.coords.longitude]),
+        () => { /* silently ignore */ },
+        { timeout: 5000 }
+      );
+    }
   };
 
   // Forward geocoding (search bar)
@@ -126,8 +146,10 @@ export function LocationPicker({ label, value, onChange, placeholder, error }: L
   const handleConfirm = () => { onChange(temp); setOpen(false); };
   const handleClear   = (e: React.MouseEvent) => { e.stopPropagation(); onChange(null); };
 
-  const initialCenter: [number, number] = value ? [value.lat, value.lng] : BOGOTA;
-  const initialZoom   = value ? 15 : 12;
+  const initialCenter: [number, number] = value
+    ? [value.lat, value.lng]
+    : geoCenter ?? defaultCenter ?? BOGOTA;
+  const initialZoom = value ? 15 : (geoCenter || defaultCenter) ? 15 : 12;
 
   return (
     <div>
@@ -253,6 +275,7 @@ export function LocationPicker({ label, value, onChange, placeholder, error }: L
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 />
                 <ClickHandler onClick={handleMapClick} />
+                <GeoFlyTo center={geoCenter} />
                 {temp && (
                   <>
                     <Marker position={[temp.lat, temp.lng]} icon={pickerIcon} />

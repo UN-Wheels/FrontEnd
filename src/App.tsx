@@ -11,6 +11,7 @@ import {
   PublishRoutePage,
   BookingsPage,
   ChatPage,
+  MyRoutesPage,
 } from './pages';
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
         <Route path="/search" element={<SearchRoutesPage />} />
         <Route path="/routes/:id" element={<RouteDetailPage />} />
         <Route path="/publish" element={<PublishRoutePage />} />
+        <Route path="/my-routes" element={<MyRoutesPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/profile" element={<ProfilePage />} />

@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: String(Date.now()),
         fullName: data.fullName,
         email: data.email,
-        university: data.university,
+        university: '',
         averageRating: 0,
         totalTrips: 0,
         createdAt: new Date().toISOString(),

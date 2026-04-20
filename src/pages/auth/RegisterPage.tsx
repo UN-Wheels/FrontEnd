@@ -7,6 +7,11 @@ import { ValidationError } from '../../types';
 interface RegisterFormValues {
   fullName: string;
   email: string;
+  phone_number: string;
+  age: string;
+  major: string;
+  gender: string;
+  role: string;
   password: string;
   confirmPassword: string;
 }
@@ -25,10 +30,23 @@ export function RegisterPage() {
     }
     if (!values.email) {
       errors.push({ field: 'email', message: 'El correo es obligatorio' });
-    } else if (!values.email.includes('@')) {
-      errors.push({ field: 'email', message: 'Correo inválido' });
     } else if (!values.email.toLowerCase().endsWith('@unal.edu.co')) {
       errors.push({ field: 'email', message: 'Solo se permiten correos @unal.edu.co' });
+    }
+    if (!values.phone_number.trim()) {
+      errors.push({ field: 'phone_number', message: 'El teléfono es obligatorio' });
+    }
+    if (!values.age || Number(values.age) <= 0) {
+      errors.push({ field: 'age', message: 'Ingresa una edad válida' });
+    }
+    if (!values.major.trim()) {
+      errors.push({ field: 'major', message: 'La carrera es obligatoria' });
+    }
+    if (!values.gender) {
+      errors.push({ field: 'gender', message: 'Selecciona un género' });
+    }
+    if (!values.role) {
+      errors.push({ field: 'role', message: 'Selecciona un rol' });
     }
     if (!values.password) {
       errors.push({ field: 'password', message: 'La contraseña es obligatoria' });
@@ -44,7 +62,17 @@ export function RegisterPage() {
   };
 
   const { values, handleChange, handleSubmit, getFieldError, isSubmitting } = useForm<RegisterFormValues>({
-    initialValues: { fullName: '', email: '', password: '', confirmPassword: '' },
+    initialValues: {
+      fullName: '',
+      email: '',
+      phone_number: '',
+      age: '',
+      major: '',
+      gender: '',
+      role: '',
+      password: '',
+      confirmPassword: '',
+    },
     validate: validateForm,
     onSubmit: async (formValues) => {
       try {
@@ -52,8 +80,13 @@ export function RegisterPage() {
         await register({
           fullName: formValues.fullName,
           email: formValues.email,
-password: formValues.password,
+          password: formValues.password,
           confirmPassword: formValues.confirmPassword,
+          phone_number: formValues.phone_number,
+          gender: formValues.gender as 'masculino' | 'femenino' | 'otro',
+          major: formValues.major,
+          age: Number(formValues.age),
+          role: formValues.role as 'estudiante' | 'docente',
         });
         navigate('/dashboard');
       } catch {
@@ -118,7 +151,99 @@ password: formValues.password,
           )}
         </div>
 
-        {/* Contraseñas — 2 columnas */}
+        {/* Teléfono + Edad */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="phone_number" className="auth-label">Teléfono</label>
+            <input
+              id="phone_number"
+              type="tel"
+              name="phone_number"
+              placeholder="Ej. 3001234567"
+              value={values.phone_number}
+              onChange={handleChange}
+              className={`auth-input ${getFieldError('phone_number') ? 'auth-input-error' : ''}`}
+            />
+            {getFieldError('phone_number') && (
+              <p className="mt-1.5 text-xs text-red-400">{getFieldError('phone_number')}</p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="age" className="auth-label">Edad</label>
+            <input
+              id="age"
+              type="number"
+              name="age"
+              placeholder="Ej. 21"
+              min="1"
+              max="99"
+              value={values.age}
+              onChange={handleChange}
+              className={`auth-input ${getFieldError('age') ? 'auth-input-error' : ''}`}
+            />
+            {getFieldError('age') && (
+              <p className="mt-1.5 text-xs text-red-400">{getFieldError('age')}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Carrera */}
+        <div>
+          <label htmlFor="major" className="auth-label">Carrera</label>
+          <input
+            id="major"
+            type="text"
+            name="major"
+            placeholder="Ej. Ingeniería de Sistemas"
+            value={values.major}
+            onChange={handleChange}
+            className={`auth-input ${getFieldError('major') ? 'auth-input-error' : ''}`}
+          />
+          {getFieldError('major') && (
+            <p className="mt-1.5 text-xs text-red-400">{getFieldError('major')}</p>
+          )}
+        </div>
+
+        {/* Género + Rol */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="gender" className="auth-label">Género</label>
+            <select
+              id="gender"
+              name="gender"
+              value={values.gender}
+              onChange={handleChange}
+              className={`auth-input ${getFieldError('gender') ? 'auth-input-error' : ''}`}
+            >
+              <option value="">Seleccionar</option>
+              <option value="masculino">Masculino</option>
+              <option value="femenino">Femenino</option>
+              <option value="otro">Otro</option>
+            </select>
+            {getFieldError('gender') && (
+              <p className="mt-1.5 text-xs text-red-400">{getFieldError('gender')}</p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="role" className="auth-label">Rol</label>
+            <select
+              id="role"
+              name="role"
+              value={values.role}
+              onChange={handleChange}
+              className={`auth-input ${getFieldError('role') ? 'auth-input-error' : ''}`}
+            >
+              <option value="">Seleccionar</option>
+              <option value="estudiante">Estudiante</option>
+              <option value="docente">Docente</option>
+            </select>
+            {getFieldError('role') && (
+              <p className="mt-1.5 text-xs text-red-400">{getFieldError('role')}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Contraseñas */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="password" className="auth-label">Contraseña</label>
