@@ -13,7 +13,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
+
+// Adapta la respuesta del backend (snake_case, campos distintos) al tipo User del frontend
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapApiUser(data: any): User {
+  return {
+    id: String(data.id),
+    fullName: data.name ?? data.fullName ?? '',
+    email: data.email,
+    university: data.major ?? data.university ?? '',
+    profilePicture: data.profile_picture ?? data.profilePicture,
+    averageRating: data.rating ?? data.averageRating ?? 0,
+    totalTrips: data.total_trips ?? data.totalTrips ?? 0,
+    createdAt: data.created_at ?? data.createdAt ?? new Date().toISOString(),
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -29,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (res.ok) {
           const data = await res.json();
-          setUser(data);
+          setUser(mapApiUser(data));
         } else {
           setUser(null);
         }
@@ -54,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({ username: credentials.email, password: credentials.password }),
       });
 
       if (!res.ok) {
@@ -71,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userData = await userRes.json();
-      setUser(userData);
+      setUser(mapApiUser(userData));
 
     } finally {
       setIsLoading(false);
@@ -85,7 +100,7 @@ const register = async (data: RegisterData): Promise<void> => {
     const res = await fetch(`${API_URL}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ name: data.fullName, email: data.email, password: data.password }),
       credentials: "include", // IMPORTANTE para el login automático posterior
     });
 

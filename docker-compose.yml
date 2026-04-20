@@ -2,19 +2,19 @@ version: "3.9"
 
 services:
   frontend:
-    build: ./frontend
+    build: .
     ports:
       - "5173:80"
     depends_on:
       - api-gateway
 
   api-gateway:
-    build: ./api-gateway
+    build: ../api-gateway
     ports:
       - "8080:8080"
     environment:
       - PORT=8080
-      - JWT_SECRET=super_secret
+      - JWT_SECRET=super_secret_key_change_me
       - AUTH_SERVICE_URL=http://auth-service:8000
       - CHAT_SERVICE_URL=http://chat-service:3001
       - ROUTES_SERVICE_URL=http://routes-service:4000
@@ -24,7 +24,7 @@ services:
       - auth-service
 
   auth-service:
-    build: ./auth-service
+    build: ../loggueo_service
     ports:
       - "8000:8000"
     environment:

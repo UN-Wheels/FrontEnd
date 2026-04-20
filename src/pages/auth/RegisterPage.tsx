@@ -37,8 +37,8 @@ export function RegisterPage() {
       errors.push({ field: 'email', message: 'El correo es obligatorio' });
     } else if (!values.email.includes('@')) {
       errors.push({ field: 'email', message: 'Correo inválido' });
-    } else if (!values.email.match(/.*@.*\.edu/i)) {
-      errors.push({ field: 'email', message: 'Use su correo institucional (.edu)' });
+    } else if (!values.email.toLowerCase().endsWith('@unal.edu.co')) {
+      errors.push({ field: 'email', message: 'Solo se permiten correos @unal.edu.co' });
     }
     if (!values.university) {
       errors.push({ field: 'university', message: 'Seleccione su universidad' });
