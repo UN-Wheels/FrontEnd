@@ -75,7 +75,7 @@ class SocketService {
       // El gateway hace pathRewrite '^/api/chat' → '' antes de forwarding al
       // chat-service, tanto para HTTP polling como para el upgrade WebSocket.
       path: '/api/chat/socket.io',
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
