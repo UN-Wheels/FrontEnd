@@ -32,6 +32,7 @@ function App() {
         <Route path="/my-routes" element={<MyRoutesPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/chat/:conversationId" element={<ChatPage />} />
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 

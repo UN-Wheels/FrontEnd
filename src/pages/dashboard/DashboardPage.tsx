@@ -11,6 +11,7 @@ export function DashboardPage() {
   const [recentRoutes, setRecentRoutes] = useState<ApiRoute[]>([]);
   const [upcomingTrips, setUpcomingTrips] = useState<ApiReservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [upcomingRoutesMap, setUpcomingRoutesMap] = useState<Map<string, ApiRoute>>(new Map());
 
   useEffect(() => {
     const load = async () => {
@@ -19,8 +20,30 @@ export function DashboardPage() {
           routesService.getAvailableRoutes(),
           reservationsService.getMyConfirmedTrips(),
         ]);
+
+        const upcoming = confirmed.slice(0, 3);
         setRecentRoutes(routes.slice(0, 3));
-        setUpcomingTrips(confirmed.slice(0, 3));
+        setUpcomingTrips(upcoming);
+
+        const uniqueRouteIds = [...new Set(upcoming.map((trip) => trip.routeId))];
+        if (uniqueRouteIds.length > 0) {
+          const fetched = await Promise.all(
+            uniqueRouteIds.map((id) =>
+              routesService
+                .getRouteById(id)
+                .then((route) => [id, route] as [string, ApiRoute])
+                .catch(() => null),
+            ),
+          );
+
+          const map = new Map<string, ApiRoute>();
+          fetched.forEach((entry) => {
+            if (entry) map.set(entry[0], entry[1]);
+          });
+          setUpcomingRoutesMap(map);
+        } else {
+          setUpcomingRoutesMap(new Map());
+        }
       } catch (err) {
         console.error('Error al cargar dashboard:', err);
       } finally {
@@ -36,6 +59,31 @@ export function DashboardPage() {
       month: 'short',
       day: 'numeric',
     });
+
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('es-CO', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+const shortAddress = (value: string) => value.split(',')[0].trim();
+
+const TRIP_STATUS_LABEL: Record<ApiReservation['status'], string> = {
+  PENDING: 'Pendiente',
+  CONFIRMED: 'Confirmado',
+  REJECTED: 'Rechazado',
+  CANCELLED: 'Cancelado',
+};
+
+const TRIP_STATUS_VARIANT: Record<
+  ApiReservation['status'],
+  'warning' | 'success' | 'danger' | 'default'
+> = {
+  PENDING: 'warning',
+  CONFIRMED: 'success',
+  REJECTED: 'danger',
+  CANCELLED: 'default',
+};
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -78,23 +126,63 @@ export function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {upcomingTrips.map((trip) => (
-                <div
-                  key={trip.id}
-                  className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/routes/${trip.routeId}`)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate text-sm font-mono">
-                      Ruta: {trip.routeId}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {formatDate(trip.travelDate)}
-                    </p>
+              {upcomingTrips.map((trip) => {
+                const route = upcomingRoutesMap.get(trip.routeId);
+
+                return (
+                  <div
+                    key={trip.id}
+                    className="group flex items-start gap-3 p-3.5 bg-gradient-to-r from-white to-gray-50 rounded-xl border border-gray-200 hover:border-primary/40 hover:shadow-sm cursor-pointer transition-all"
+                    onClick={() => navigate(`/routes/${trip.routeId}`)}
+                  >
+                    <div className="pt-0.5 flex flex-col items-center gap-1.5 flex-shrink-0">
+                      <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                      <div className="w-px h-4 bg-gray-300" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-secondary" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {route ? (
+                        <p className="font-semibold text-gray-900 truncate text-sm">
+                          {shortAddress(route.origin.address)}
+                          <span className="mx-1.5 text-gray-400">→</span>
+                          {shortAddress(route.destination.address)}
+                        </p>
+                      ) : (
+                        <p className="font-medium text-gray-700 truncate text-sm font-mono">
+                          Ruta {trip.routeId.slice(0, 12)}…
+                        </p>
+                      )}
+
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatDate(trip.travelDate)}
+                        {route && (
+                          <>
+                            <span className="mx-1">·</span>
+                            {formatTime(route.departureTime)}
+                            <span className="mx-1">·</span>
+                            ${route.price.toLocaleString('es-CO')} por cupo
+                          </>
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge variant={TRIP_STATUS_VARIANT[trip.status]}>
+                        {TRIP_STATUS_LABEL[trip.status]}
+                      </Badge>
+                      <svg
+                        className="w-4 h-4 text-gray-400 group-hover:text-primary transition-colors"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </div>
-                  <Badge variant="success">Confirmado</Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>
