@@ -333,6 +333,19 @@ export function ChatPage() {
     }
   }, [messages]);
 
+  // Al entrar/cambiar de conversación, asegúrate de arrancar en el último mensaje.
+  useEffect(() => {
+    if (!selectedId || loadingMsgs) return;
+    const c = containerRef.current;
+    if (!c) return;
+
+    const raf = requestAnimationFrame(() => {
+      c.scrollTop = c.scrollHeight;
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [selectedId, loadingMsgs]);
+
   // Cleanup al desmontar
   useEffect(() => {
     return () => {
@@ -453,15 +466,15 @@ export function ChatPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-180px)] flex rounded-xl overflow-hidden bg-white shadow-soft animate-fade-in">
+    <div className="h-[calc(100dvh-6rem)] sm:h-[calc(100dvh-6.5rem)] md:h-[calc(100vh-180px)] min-h-[420px] w-full flex rounded-none md:rounded-xl overflow-hidden bg-white shadow-soft animate-fade-in">
       {/* ── Panel izquierdo: lista de conversaciones ─────────────────────── */}
       <div
-        className={`w-full md:w-80 border-r border-gray-100 flex flex-col bg-gray-50 flex-shrink-0 ${
+        className={`w-full md:w-[22rem] border-r border-gray-100 flex flex-col bg-gray-50 flex-shrink-0 ${
           selectedId ? 'hidden md:flex' : 'flex'
         }`}
       >
         {/* Header lista */}
-        <div className="p-4 border-b border-gray-100 bg-white">
+        <div className="px-3 sm:px-4 py-3 border-b border-gray-100 bg-white">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-gray-900">Mensajes</h2>
             {isConnected && (
@@ -476,7 +489,7 @@ export function ChatPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar conversación..."
-            className="w-full px-3 py-2 text-sm bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full px-3 py-2 text-base md:text-sm bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
 
@@ -494,7 +507,7 @@ export function ChatPage() {
               <button
                 key={conv.conversationId}
                 onClick={() => handleSelectConv(conv.conversationId)}
-                className={`w-full px-4 py-3 flex items-start gap-3 text-left transition-colors border-b border-gray-100 hover:bg-gray-100 ${
+                className={`w-full px-3 sm:px-4 py-3.5 sm:py-3 flex items-start gap-3 text-left transition-colors border-b border-gray-100 hover:bg-gray-100 ${
                   isSelected ? 'bg-primary/5 border-l-4 border-l-primary' : ''
                 }`}
               >
@@ -539,7 +552,7 @@ export function ChatPage() {
         {selectedConv || selectedId ? (
           <>
             {/* Header del chat */}
-            <div className="px-4 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
+            <div className="px-3 sm:px-4 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
               <button
                 onClick={handleBack}
                 className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600"
@@ -576,7 +589,7 @@ export function ChatPage() {
             {/* Mensajes */}
             <div
               ref={containerRef}
-              className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50"
+              className="flex-1 overflow-y-auto px-2.5 sm:px-4 py-3 sm:py-4 space-y-2.5 sm:space-y-3 bg-gray-50 overscroll-contain"
             >
               {loadingMsgs ? (
                 <div className="flex justify-center items-center h-full">
@@ -598,7 +611,7 @@ export function ChatPage() {
                         formatDate(msg.timestamp);
 
                     return (
-                      <div key={msg.id}>
+                      <div key={msg.id} className="w-full">
                         {showDate && (
                           <div className="text-center my-3">
                             <span className="text-xs text-gray-400 bg-white px-3 py-1 rounded-full shadow-sm">
@@ -607,16 +620,16 @@ export function ChatPage() {
                           </div>
                         )}
                         <div
-                          className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                          className={`w-full flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                         >
                           <div
-                            className={`max-w-[70%] px-4 py-2 rounded-2xl ${
+                            className={`min-w-0 max-w-[calc(100%-1.75rem)] sm:max-w-[78%] lg:max-w-[70%] px-3 sm:px-4 py-2 rounded-2xl ${
                               isOwn
-                                ? 'bg-primary text-white rounded-br-md'
-                                : 'bg-white text-gray-900 rounded-bl-md shadow-sm'
+                                ? 'ml-auto bg-primary text-white rounded-br-md'
+                                : 'mr-auto bg-white text-gray-900 rounded-bl-md shadow-sm'
                             }`}
                           >
-                            <p className="text-sm break-words whitespace-pre-wrap">
+                            <p className="text-[13px] sm:text-sm break-words whitespace-pre-wrap">
                               {msg.content}
                             </p>
                             <div
@@ -646,7 +659,8 @@ export function ChatPage() {
             {/* Input de mensaje */}
             <form
               onSubmit={handleSend}
-              className="px-4 py-3 border-t border-gray-100 bg-white"
+              className="px-2.5 sm:px-4 pt-2.5 sm:pt-3 border-t border-gray-100 bg-white"
+              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
             >
               <div className="flex items-center gap-2">
                 <input
@@ -657,12 +671,12 @@ export function ChatPage() {
                   placeholder="Escribe un mensaje..."
                   maxLength={2000}
                   disabled={sending}
-                  className="flex-1 px-4 py-2.5 text-sm bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 text-base sm:text-sm bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || sending}
-                  className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                  className="w-11 h-11 sm:w-10 sm:h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                   aria-label="Enviar"
                 >
                   {sending ? (
