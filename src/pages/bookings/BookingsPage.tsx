@@ -9,6 +9,7 @@ import {
 } from '../../services/routesService';
 import { useAuth } from '../../context/AuthContext';
 import { AvailabilityManager } from '../../components/availability/AvailabilityManager';
+import { vehiclesService, Vehicle } from '../../services/vehiclesService';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ export function BookingsPage() {
   const [myRoutes, setMyRoutes] = useState<ApiRoute[]>([]);
   const [driverPending, setDriverPending] = useState<ApiReservation[]>([]);
   const [driverConfirmed, setDriverConfirmed] = useState<ApiReservation[]>([]);
+  const [myVehicles, setMyVehicles] = useState<Vehicle[]>([]);
 
   // Pasajero data
   const [myPending, setMyPending] = useState<ApiReservation[]>([]);
@@ -92,18 +94,20 @@ export function BookingsPage() {
       setIsLoading(true);
       setError('');
       try {
-        const [routes, drPending, drConfirmed, paxPending, paxConfirmed] = await Promise.all([
+        const [routes, drPending, drConfirmed, paxPending, paxConfirmed, vehicles] = await Promise.all([
           routesService.getMyRoutes(),
           reservationsService.getDriverPendingRequests(),
           reservationsService.getDriverConfirmedTrips(),
           reservationsService.getMyPendingRequests(),
           reservationsService.getMyConfirmedTrips(),
+          vehiclesService.getMyVehicles().catch(() => [] as Vehicle[]),
         ]);
         setMyRoutes(routes);
         setDriverPending(drPending);
         setDriverConfirmed(drConfirmed);
         setMyPending(paxPending);
         setMyConfirmed(paxConfirmed);
+        setMyVehicles(vehicles);
 
         // Enrich passenger reservations with route details
         const allPax = [...paxPending, ...paxConfirmed];
@@ -217,6 +221,9 @@ export function BookingsPage() {
       ...driverPending.filter(r => r.routeId === route.id),
       ...confirmed,
     ];
+    const vehicle = route.vehicleId
+      ? myVehicles.find(v => String(v.id) === route.vehicleId)
+      : undefined;
 
     return (
       <div className="border border-gray-200 rounded-2xl overflow-hidden">
@@ -236,6 +243,9 @@ export function BookingsPage() {
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
                 {fmtTime(route.departureTime)} · ${route.price.toLocaleString()} por cupo
+                {vehicle && (
+                  <span className="ml-2 text-gray-400">· {vehicle.plate} ({vehicle.vehicle_type})</span>
+                )}
               </p>
             </div>
           </div>
