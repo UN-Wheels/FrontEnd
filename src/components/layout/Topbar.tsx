@@ -57,14 +57,17 @@ export function Topbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   const handleLogout = () => {
+    setShowUserMenu(false);
+    setShowMobileNav(false);
     logout();
     navigate('/login');
   };
 
   return (
-    <header className="bg-[#151b3d] border-b border-white/10 px-4 lg:px-8 py-2 flex items-center justify-between sticky top-0 z-30 shadow-lg">
+    <header className="relative bg-[#151b3d] border-b border-white/10 px-4 lg:px-8 py-2 flex items-center justify-between sticky top-0 z-30 shadow-lg">
       {/* Lado Izquierdo: Logo y Navegación Principal */}
       <div className="flex items-center gap-8">
         {/* Logo de UN Wheels */}
@@ -81,8 +84,8 @@ export function Topbar() {
               className={({ isActive }) =>
                 `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-gray-200 hover:bg-white/10 hover:text-white'
                 }`
               }
             >
@@ -95,13 +98,35 @@ export function Topbar() {
 
       {/* Lado Derecho: Notificaciones y Usuario */}
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          className="lg:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-100 hover:bg-white/10 transition-colors"
+          aria-label="Abrir navegación"
+          onClick={() => {
+            setShowMobileNav((prev) => !prev);
+            setShowUserMenu(false);
+          }}
+        >
+          {showMobileNav ? (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          )}
+        </button>
 
 
         {/* Menú de Usuario */}
         <div className="relative">
           <button
             className="flex items-center gap-2 p-1 rounded-full hover:bg-[#45acab] transition-colors"
-            onClick={() => setShowUserMenu(!showUserMenu)}
+            onClick={() => {
+              setShowUserMenu(!showUserMenu);
+              setShowMobileNav(false);
+            }}
           >
             <Avatar src={user?.profilePicture} alt={user?.fullName || 'User'} size="sm"  />
             <svg className="w-4 h-4 text-gray-200 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -116,7 +141,11 @@ export function Topbar() {
                 <p className="text-sm text-gray-500 truncate">{user?.email}</p>
               </div>
               <div className="py-1">
-                <Link to="/profile" className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  onClick={() => setShowUserMenu(false)}
+                >
                    Perfil
                 </Link>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
@@ -127,6 +156,32 @@ export function Topbar() {
           )}
         </div>
       </div>
+
+      {showMobileNav && (
+        <div className="lg:hidden absolute left-4 right-4 top-full mt-2 z-40 animate-fade-in">
+          <div className="rounded-2xl border border-white/10 bg-[#151b3d] shadow-2xl p-2">
+            <nav className="flex flex-col gap-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={`mobile-${item.path}`}
+                  to={item.path}
+                  onClick={() => setShowMobileNav(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-primary/15 text-primary'
+                        : 'text-gray-200 hover:bg-white/10 hover:text-white'
+                    }`
+                  }
+                >
+                  {item.icon}
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

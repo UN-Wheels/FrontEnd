@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { AvailabilityManager } from '../../components/availability/AvailabilityManager';
 import { vehiclesService, Vehicle } from '../../services/vehiclesService';
+import { chatService } from '../../services/chatService';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ export function BookingsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [chatError, setChatError] = useState('');
 
   // Conductor data
   const [myRoutes, setMyRoutes] = useState<ApiRoute[]>([]);
@@ -88,6 +90,7 @@ export function BookingsPage() {
 
   // Availability modal
   const [availabilityRouteId, setAvailabilityRouteId] = useState<string | null>(null);
+  const [chatOpeningKey, setChatOpeningKey] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -169,28 +172,75 @@ export function BookingsPage() {
     }
   };
 
+  const openOrCreateChat = async (
+    routeId: string,
+    driverId: string,
+    passengerId: string,
+    actionKey: string,
+  ) => {
+    setChatError('');
+    setChatOpeningKey(actionKey);
+    try {
+      const result = await chatService.createConversation(routeId, driverId, passengerId);
+      navigate(`/chat/${result.conversation._id}`);
+    } catch (err) {
+      console.error(err);
+      setChatError('No se pudo abrir el chat. Intenta nuevamente.');
+    } finally {
+      setChatOpeningKey(null);
+    }
+  };
+
   // ── Sub-components ─────────────────────────────────────────────────────────
 
-  const RequestRow = ({ reservation }: { reservation: ApiReservation }) => (
-    <div className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors">
+  const RequestRow = ({
+    reservation,
+    route,
+  }: {
+    reservation: ApiReservation;
+    route: ApiRoute;
+  }) => (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 px-3 rounded-xl border border-slate-100 bg-white hover:border-primary/25 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
           </svg>
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-gray-800">{fmtDate(reservation.travelDate)}</p>
-          <p className="text-sm text-gray-700 font-medium">
-            Pasajero {reservation.passengerId.slice(0, 12)}…
+          <p className="text-sm font-semibold text-slate-800">{fmtDate(reservation.travelDate)}</p>
+          <p className="text-sm text-slate-600 font-medium truncate">
+            Pasajero {reservation.passengerId.slice(0, 18)}…
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
+
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
         <Badge variant={STATUS_VARIANT[reservation.status] ?? 'default'} size="sm">
           {STATUS_LABEL[reservation.status] ?? reservation.status}
         </Badge>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          isLoading={chatOpeningKey === `driver-${reservation.id}`}
+          onClick={() =>
+            openOrCreateChat(
+              route.id,
+              route.driverId,
+              reservation.passengerId,
+              `driver-${reservation.id}`,
+            )
+          }
+        >
+          Chat
+        </Button>
+
         {reservation.status === 'PENDING' && (
           <>
             <Button
@@ -226,9 +276,9 @@ export function BookingsPage() {
       : undefined;
 
     return (
-      <div className="border border-gray-200 rounded-2xl overflow-hidden">
+      <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-[0_10px_28px_rgba(8,20,46,0.16)]">
         {/* Route header */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 bg-white">
+        <div className="flex items-start sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50/70">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex flex-col items-center gap-1 flex-shrink-0">
               <div className="w-2.5 h-2.5 rounded-full bg-primary" />
@@ -236,20 +286,20 @@ export function BookingsPage() {
               <div className="w-2.5 h-2.5 rounded-full bg-secondary" />
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-gray-900 truncate text-sm">
+              <p className="font-semibold text-slate-900 truncate text-sm sm:text-[15px]">
                 {shortAddr(route.origin.address)}
                 <span className="text-gray-400 mx-1.5">→</span>
                 {shortAddr(route.destination.address)}
               </p>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 {fmtTime(route.departureTime)} · ${route.price.toLocaleString()} por cupo
                 {vehicle && (
-                  <span className="ml-2 text-gray-400">· {vehicle.plate} ({vehicle.vehicle_type})</span>
+                  <span className="ml-2 text-slate-400">· {vehicle.plate} ({vehicle.vehicle_type})</span>
                 )}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
             <Badge variant={ROUTE_STATUS_VARIANT[route.status] ?? 'default'} size="sm">
               {ROUTE_STATUS_LABEL[route.status] ?? route.status}
             </Badge>
@@ -292,7 +342,7 @@ export function BookingsPage() {
 
         {/* Request counts pill */}
         {allRequests.length > 0 && (
-          <div className="px-5 pb-0 pt-0 flex gap-2">
+          <div className="px-5 pb-0 pt-0 flex gap-2 flex-wrap">
             {pending.length > 0 && (
               <span className="text-xs font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 px-2.5 py-1 rounded-full">
                 {pending.length} pendiente{pending.length !== 1 ? 's' : ''}
@@ -308,21 +358,21 @@ export function BookingsPage() {
 
         {/* Requests list */}
         {allRequests.length > 0 ? (
-          <div className="px-4 py-3 bg-gray-50/60 border-t border-gray-100 mt-3 space-y-1">
+          <div className="px-4 py-3 bg-[#f7fafc] border-t border-slate-100 mt-3 space-y-2">
             {pending.length > 0 && (
               <>
-                <p className="text-xs font-semibold text-yellow-600 uppercase tracking-wider px-3 mb-1">
+                <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wider px-1 mb-1">
                   Pendientes
                 </p>
-                {pending.map(r => <RequestRow key={r.id} reservation={r} />)}
+                {pending.map(r => <RequestRow key={r.id} reservation={r} route={route} />)}
               </>
             )}
             {confirmed.length > 0 && (
               <>
-                <p className="text-xs font-semibold text-green-600 uppercase tracking-wider px-3 mb-1 mt-3">
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider px-1 mb-1 mt-2">
                   Confirmados
                 </p>
-                {confirmed.map(r => <RequestRow key={r.id} reservation={r} />)}
+                {confirmed.map(r => <RequestRow key={r.id} reservation={r} route={route} />)}
               </>
             )}
           </div>
@@ -338,7 +388,7 @@ export function BookingsPage() {
   const PassengerCard = ({ reservation }: { reservation: ApiReservation }) => {
     const route = passengerRouteMap.get(reservation.routeId);
     return (
-      <div className="flex items-center justify-between gap-3 p-4 bg-white/90 border border-white/30 rounded-xl hover:bg-white hover:border-primary/30 transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-white border border-slate-200 rounded-xl hover:border-primary/35 hover:shadow-sm transition-colors">
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
             <div className="w-2.5 h-2.5 rounded-full bg-primary" />
@@ -361,10 +411,27 @@ export function BookingsPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-wrap sm:justify-end">
           <Badge variant={STATUS_VARIANT[reservation.status] ?? 'default'} size="sm">
             {STATUS_LABEL[reservation.status] ?? reservation.status}
           </Badge>
+          {route && (
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={chatOpeningKey === `passenger-${reservation.id}`}
+              onClick={() =>
+                openOrCreateChat(
+                  route.id,
+                  route.driverId,
+                  reservation.passengerId,
+                  `passenger-${reservation.id}`,
+                )
+              }
+            >
+              Chat
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -413,11 +480,17 @@ export function BookingsPage() {
         </div>
       </div>
 
+      {chatError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {chatError}
+        </div>
+      )}
+
       {/* ── TWO COLUMN LAYOUT ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
         {/* ── CONDUCTOR ─────────────────────────────────────────────────────── */}
-        <section>
+        <section className="rounded-2xl border border-white/15 bg-[#0b1232]/65 backdrop-blur-sm p-4 md:p-5">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -427,7 +500,7 @@ export function BookingsPage() {
               <h2 className="text-base font-semibold text-white">Como Conductor</h2>
             </div>
             {totalPendingDriver > 0 && (
-              <span className="px-2 py-0.5 bg-yellow-400 text-yellow-900 text-xs font-bold rounded-full">
+              <span className="px-2 py-0.5 bg-yellow-300 text-yellow-900 text-xs font-bold rounded-full">
                 {totalPendingDriver} pendiente{totalPendingDriver !== 1 ? 's' : ''}
               </span>
             )}
@@ -461,7 +534,7 @@ export function BookingsPage() {
         </section>
 
         {/* ── PASAJERO ──────────────────────────────────────────────────────── */}
-        <section>
+        <section className="rounded-2xl border border-white/15 bg-[#0b1232]/65 backdrop-blur-sm p-4 md:p-5">
           <div className="flex items-center gap-2 mb-4">
             <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
