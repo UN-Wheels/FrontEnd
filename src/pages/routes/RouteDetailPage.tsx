@@ -79,29 +79,54 @@ export function RouteDetailPage() {
       .catch(() => {});
   }, [route, user]);
 
-  // Fetch road geometry via OSRM
+  // Fetch road geometry via OSRM.
+  // router.project-osrm.org es el servidor demo público — tiene rate limiting
+  // agresivo y suele estar caído. Se intenta con dos servidores alternativos
+  // antes de caer en la línea recta de fallback.
   useEffect(() => {
     if (!route) return;
-    fetch(
-      `https://router.project-osrm.org/route/v1/driving/` +
-        `${route.origin.lng},${route.origin.lat};${route.destination.lng},${route.destination.lat}` +
-        `?overview=full&geometries=geojson`
-    )
-      .then(r => r.json())
-      .then(data => {
-        const coords = data.routes[0].geometry.coordinates.map(
-          ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
-        );
-        setRouteCoords(coords);
-      })
-      .catch(() => {
-        if (route) {
-          setRouteCoords([
-            [route.origin.lat, route.origin.lng],
-            [route.destination.lat, route.destination.lng],
-          ]);
+
+    const { origin, destination } = route;
+    const coords = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`;
+    const query  = `?overview=full&geometries=geojson`;
+
+    const servers = [
+      `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}${query}`,
+      `https://router.project-osrm.org/route/v1/driving/${coords}${query}`,
+    ];
+
+    const parseCoords = (data: any): [number, number][] =>
+      data.routes[0].geometry.coordinates.map(
+        ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
+      );
+
+    const fallback = (): [number, number][] => [
+      [origin.lat, origin.lng],
+      [destination.lat, destination.lng],
+    ];
+
+    // Intenta cada servidor en orden; usa el primero que responda correctamente
+    const tryNext = async (index: number): Promise<void> => {
+      if (index >= servers.length) {
+        console.warn('[OSRM] Todos los servidores fallaron — mostrando línea recta');
+        setRouteCoords(fallback());
+        return;
+      }
+      try {
+        const res = await fetch(servers[index]);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.routes?.[0]?.geometry?.coordinates?.length) {
+          throw new Error('Respuesta vacía o sin geometría');
         }
-      });
+        setRouteCoords(parseCoords(data));
+      } catch (err) {
+        console.warn(`[OSRM] Servidor ${index + 1} falló:`, err);
+        tryNext(index + 1);
+      }
+    };
+
+    tryNext(0);
   }, [route]);
 
   // Keep selectedSlot in sync with selectedDate
