@@ -70,7 +70,7 @@ export function BookingsPage() {
   const [myRoutes, setMyRoutes] = useState<ApiRoute[]>([]);
   const [driverPending, setDriverPending] = useState<ApiReservation[]>([]);
   const [driverConfirmed, setDriverConfirmed] = useState<ApiReservation[]>([]);
-  const [myVehicles, setMyVehicles] = useState<Vehicle[]>([]);
+  const [, setMyVehicles] = useState<Vehicle[]>([]);
 
   // Pasajero data
   const [myPending, setMyPending] = useState<ApiReservation[]>([]);
@@ -215,8 +215,11 @@ export function BookingsPage() {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-800">{fmtDate(reservation.travelDate)}</p>
           <p className="text-sm text-slate-600 font-medium truncate">
-            Pasajero {reservation.passengerId.slice(0, 18)}…
+            {reservation.passenger?.name ?? reservation.passenger?.email ?? reservation.passengerId}
           </p>
+          {reservation.passenger?.name && (
+            <p className="text-xs text-slate-400 truncate">{reservation.passenger.email}</p>
+          )}
         </div>
       </div>
 
@@ -271,9 +274,7 @@ export function BookingsPage() {
       ...driverPending.filter(r => r.routeId === route.id),
       ...confirmed,
     ];
-    const vehicle = route.vehicleId
-      ? myVehicles.find(v => String(v.id) === route.vehicleId)
-      : undefined;
+    const vehicle = route.vehicle?.plate ? route.vehicle : undefined;
 
     return (
       <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-[0_10px_28px_rgba(8,20,46,0.16)]">

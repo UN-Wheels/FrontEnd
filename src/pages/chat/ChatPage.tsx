@@ -73,14 +73,7 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('es-CO', { month: 'short', day: 'numeric' });
 }
 
-function conversationLabel(conv: RouteConversationSummary): string {
-  return conv.otherUserRole === 'driver' ? 'Conductor' : 'Pasajero';
-}
 
-function shortId(str: string): string {
-  if (str.includes('@')) return str.split('@')[0];
-  return str.slice(0, 10);
-}
 
 // ─── Tipos locales ─────────────────────────────────────────────────────────────
 
@@ -121,12 +114,29 @@ export function ChatPage() {
   const prevConvRef = useRef<string | null>(null);
   const isLoadingRef = useRef(false);
 
+  const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
+
   // ── Cargar conversaciones ────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
     if (!userId) return;
     try {
       const data = await chatService.getUserConversations(userId);
       setConversations(data);
+      // Fetchear nombres reales de los otros participantes
+      const emails = [...new Set(data.map(c => c.otherUserId))];
+      const results = await Promise.all(
+        emails.map(async (email) => {
+          try {
+            const res = await fetch(`/api/auth/users/${encodeURIComponent(email)}`);
+            if (!res.ok) return [email, null] as const;
+            const u = await res.json();
+            return [email, u.name ?? null] as const;
+          } catch {
+            return [email, null] as const;
+          }
+        })
+      );
+      setUserNames(new Map(results.filter(([, name]) => name !== null) as [string, string][]));
     } catch (err) {
       console.error('Error al cargar conversaciones:', err);
     }
@@ -436,10 +446,13 @@ export function ChatPage() {
   };
 
   // ── Datos derivados ───────────────────────────────────────────────────────
-  const filtered = conversations.filter((c) =>
-    conversationLabel(c).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.otherUserId.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filtered = conversations.filter((c) => {
+    const name = userNames.get(c.otherUserId) ?? c.otherUserId.split('@')[0];
+    return (
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.otherUserId.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
   const selectedConv = conversations.find((c) => c.conversationId === selectedId) ?? null;
 
@@ -497,11 +510,10 @@ export function ChatPage() {
         <div className="flex-1 overflow-y-auto">
           {filtered.map((conv) => {
             const isSelected = conv.conversationId === selectedId;
-            const label = conversationLabel(conv);
-            const sub = shortId(conv.otherUserId);
-            const time = conv.lastMessageAt
-              ? formatTime(conv.lastMessageAt)
-              : '';
+            const name = userNames.get(conv.otherUserId) ?? conv.otherUserId.split('@')[0];
+            const sub = conv.otherUserId;
+            const time = conv.lastMessageAt ? formatTime(conv.lastMessageAt) : '';
+            const avatarLetter = name[0]?.toUpperCase() ?? '?';
 
             return (
               <button
@@ -513,12 +525,12 @@ export function ChatPage() {
               >
                 {/* Avatar */}
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-primary font-bold text-sm">
-                  {label[0]}
+                  {avatarLetter}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900 truncate text-sm">{label}</p>
+                    <p className="font-medium text-gray-900 truncate text-sm">{name}</p>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                       {conv.unreadCount > 0 && (
                         <span className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center">
@@ -561,22 +573,26 @@ export function ChatPage() {
                 <ArrowLeftIcon />
               </button>
 
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
-                {selectedConv ? conversationLabel(selectedConv)[0] : '?'}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm">
-                  {selectedConv ? conversationLabel(selectedConv) : 'Chat'}
-                </p>
-                {routeLabel ? (
-                  <p className="text-xs text-gray-500 truncate">{routeLabel}</p>
-                ) : selectedConv ? (
-                  <p className="text-xs text-gray-400 truncate">
-                    {shortId(selectedConv.otherUserId)}
-                  </p>
-                ) : null}
-              </div>
+              {(() => {
+                const headerName = selectedConv
+                  ? (userNames.get(selectedConv.otherUserId) ?? selectedConv.otherUserId.split('@')[0])
+                  : '?';
+                return (
+                  <>
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                      {headerName[0]?.toUpperCase() ?? '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm">{selectedConv ? headerName : 'Chat'}</p>
+                      {routeLabel ? (
+                        <p className="text-xs text-gray-500 truncate">{routeLabel}</p>
+                      ) : selectedConv ? (
+                        <p className="text-xs text-gray-400 truncate">{selectedConv.otherUserId}</p>
+                      ) : null}
+                    </div>
+                  </>
+                );
+              })()}
 
               {isConnected && (
                 <span

@@ -71,11 +71,11 @@ export function RouteDetailPage() {
     load();
   }, [id]);
 
-  // Load own vehicle once both route and user are available
+  // Load own vehicle as fallback when route.vehicle has no plate (e.g. own routes)
   useEffect(() => {
-    if (!route?.vehicleId || !user || route.driverId !== user.email) return;
+    if (!route?.vehicle?.id || route.vehicle?.plate || !user || route.driverId !== user.email) return;
     vehiclesService.getMyVehicles()
-      .then(vs => setOwnVehicle(vs.find(v => String(v.id) === route.vehicleId) ?? null))
+      .then(vs => setOwnVehicle(vs.find(v => String(v.id) === String(route.vehicle!.id)) ?? null))
       .catch(() => {});
   }, [route, user]);
 
@@ -355,28 +355,22 @@ export function RouteDetailPage() {
           <Card>
             <CardTitle>Conductor</CardTitle>
             {(() => {
-              // driverId stores the user's email (JWT sub field), not numeric id
-              const isOwnRoute = user && route.driverId === user.email;
+              const driverName = route.driver?.name ?? route.driver?.email ?? 'Conductor';
+              const driverEmail = route.driver?.email ?? '';
+              const initials = route.driver?.name
+                ? route.driver.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+                : driverEmail[0]?.toUpperCase() ?? '?';
+              const displayVehicle = route.vehicle?.plate ? route.vehicle : ownVehicle ?? undefined;
               return (
                 <div className="mt-4 text-center">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                    <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto text-primary font-bold text-xl">
+                    {initials}
                   </div>
-                  {isOwnRoute ? (
-                    <>
-                      <h3 className="text-base font-semibold text-gray-900 mt-3">{user.fullName}</h3>
-                      <p className="text-sm text-gray-500 mt-0.5">{user.email}</p>
-                    </>
-                  ) : (
-                    <>
-                      <h3 className="text-base font-semibold text-gray-900 mt-3">Conductor</h3>
-                      <p className="text-sm text-gray-500 mt-0.5">Universidad Nacional de Colombia</p>
-                    </>
+                  <h3 className="text-base font-semibold text-gray-900 mt-3">{driverName}</h3>
+                  {driverEmail && (
+                    <p className="text-sm text-gray-500 mt-0.5">{driverEmail}</p>
                   )}
-                  {ownVehicle && (
+                  {displayVehicle && (
                     <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
                       <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -384,8 +378,8 @@ export function RouteDetailPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                           d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 2h10z M13 8h4l3 3v5h-2" />
                       </svg>
-                      <span className="text-xs font-semibold text-gray-700">{ownVehicle.plate}</span>
-                      <span className="text-xs text-gray-400">· {ownVehicle.vehicle_type}</span>
+                      <span className="text-xs font-semibold text-gray-700">{displayVehicle.plate}</span>
+                      <span className="text-xs text-gray-400">· {displayVehicle.vehicle_type}</span>
                     </div>
                   )}
                 </div>

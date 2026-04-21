@@ -23,6 +23,20 @@ services:
     depends_on:
       - auth-service
       - routes-service
+      - chat-service
+
+  chat-service:
+    build: ../chat-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongo:27017/uniwheels_chat
+      - JWT_ACCESS_SECRET=super_secret_key_change_me
+      - CORS_ORIGIN=http://localhost:5173
+    depends_on:
+      - mongo
 
   routes-service:
     build: ../routes-reservations-service

@@ -23,10 +23,28 @@ interface BackendLocation {
   lng: number;
 }
 
+// El gateway enriquece driverId → driver, vehicleId → vehicle, passengerId → passenger
+interface BackendUser {
+  name?: string;
+  email: string;
+  role?: string;
+  phone_number?: string;
+}
+
+interface BackendVehicle {
+  id?: string | number;
+  plate?: string;
+  vehicle_type?: string;
+  brand?: string;
+  model?: string;
+  color?: string;
+  year?: number;
+}
+
 export interface BackendRoute {
   _id: string;
-  driverId: string;
-  vehicleId?: string;
+  driver: BackendUser;
+  vehicle?: BackendVehicle;
   origin: BackendLocation;
   destination: BackendLocation;
   departureTime: string;
@@ -39,30 +57,47 @@ export interface BackendRoute {
 export interface BackendReservation {
   _id: string;
   routeId: string | BackendRoute;
-  passengerId: string;
+  passenger: BackendUser;
   travelDate: string;
   status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
   createdAt: string;
   updatedAt: string;
 }
 
-// ─── Tipos del frontend (compatibles con las páginas existentes) ──────────────
+// ─── Tipos del frontend ────────────────────────────────────────────────────────
 
 export interface ApiLocation {
-  /** Viene de origin.name / destination.name del backend */
   address: string;
   lat: number;
   lng: number;
 }
 
+export interface ApiDriver {
+  name?: string;
+  email: string;
+  role?: string;
+  rating?: number;
+}
+
+export interface ApiVehicle {
+  id?: string | number;
+  plate?: string;
+  vehicle_type?: string;
+  brand?: string;
+  model?: string;
+  color?: string;
+  year?: number;
+}
+
 export interface ApiRoute {
   id: string;
+  /** Email del conductor — mantenido para compatibilidad con código existente */
   driverId: string;
-  vehicleId?: string;
+  driver: ApiDriver;
+  vehicle?: ApiVehicle;
   origin: ApiLocation;
   destination: ApiLocation;
   departureTime: string;
-  /** Mapped desde pricePerSeat */
   price: number;
   status: string;
   createdAt: string;
@@ -78,7 +113,9 @@ export interface RouteSlot {
 export interface ApiReservation {
   id: string;
   routeId: string;
+  /** Email del pasajero — mantenido para compatibilidad con código existente */
   passengerId: string;
+  passenger: ApiDriver;
   travelDate: string;
   status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
   createdAt: string;
@@ -89,8 +126,9 @@ export interface ApiReservation {
 export function mapRoute(r: BackendRoute): ApiRoute {
   return {
     id: r._id,
-    driverId: r.driverId,
-    vehicleId: r.vehicleId,
+    driverId: r.driver?.email ?? '',
+    driver:   r.driver   ?? { email: '' },
+    vehicle:  r.vehicle  ?? undefined,
     origin: {
       address: r.origin.name,
       lat: r.origin.lat,
@@ -114,7 +152,8 @@ function mapReservation(r: BackendReservation): ApiReservation {
   return {
     id: r._id,
     routeId,
-    passengerId: r.passengerId,
+    passengerId: r.passenger?.email ?? '',
+    passenger:   r.passenger ?? { email: '' },
     travelDate: r.travelDate,
     status: r.status,
     createdAt: r.createdAt,
