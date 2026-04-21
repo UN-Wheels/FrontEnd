@@ -1,3 +1,4 @@
+'use client';
 interface AvatarProps {
   src?: string;
   alt: string;

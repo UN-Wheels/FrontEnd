@@ -1,3 +1,4 @@
+'use client';
 interface StarRatingProps {
   rating: number;
   maxRating?: number;

@@ -1,3 +1,4 @@
+'use client';
 import { io, Socket } from 'socket.io-client';
 
 // ─── Tipos de eventos del chat-service (camelCase) ────────────────────────────
@@ -52,8 +53,8 @@ type StatusCallback = (data: SocketMessageStatusData) => void;
 // del proxy de Vite con el handshake de Socket.IO (polling → upgrade WS).
 // En producción VITE_API_URL apunta al gateway.
 const SOCKET_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ||
-  (import.meta.env.DEV ? 'http://localhost:8080' : window.location.origin);
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080');
 
 class SocketService {
   private socket: Socket | null = null;

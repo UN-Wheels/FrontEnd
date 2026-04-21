@@ -1,4 +1,6 @@
-import { NavLink } from 'react-router-dom';
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import logotype from '../../assets/logotype.png';
 
 interface NavItem {
@@ -70,9 +72,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const pathname = usePathname();
+
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -80,7 +83,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`
           fixed top-0 left-0 z-50 h-full w-64 bg-secondary-dark transform transition-transform duration-300 ease-in-out
@@ -89,36 +91,31 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         `}
       >
         <div className="h-full flex flex-col">
-          {/* Logo */}
           <div className="flex items-center px-6 py-5 border-b border-secondary-medium">
-            <img src={logotype} alt="UN Wheels" className="h-8" />
+            <img src={logotype.src} alt="UN Wheels" className="h-8" />
           </div>
 
-          {/* Navigation */}
           <nav className="flex-1 px-3 py-4 overflow-y-auto">
             <ul className="space-y-1">
               {navItems.map((item) => (
                 <li key={item.path}>
-                  <NavLink
-                    to={item.path}
+                  <Link
+                    href={item.path}
                     onClick={onClose}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
-                        isActive
-                          ? 'bg-primary text-white'
-                          : 'text-gray-300 hover:bg-secondary-medium hover:text-white'
-                      }`
-                    }
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
+                      pathname === item.path || pathname.startsWith(item.path + '/')
+                        ? 'bg-primary text-white'
+                        : 'text-gray-300 hover:bg-secondary-medium hover:text-white'
+                    }`}
                   >
                     {item.icon}
                     <span className="font-medium">{item.label}</span>
-                  </NavLink>
+                  </Link>
                 </li>
               ))}
             </ul>
           </nav>
 
-          {/* Footer */}
           <div className="px-4 py-4 border-t border-secondary-medium">
             <div className="flex items-center gap-3 text-gray-400 text-sm">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

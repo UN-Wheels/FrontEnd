@@ -1,10 +1,11 @@
+'use client';
 import { useState } from 'react';
-import { useNavigate, NavLink, Link } from 'react-router-dom';
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../ui/Avatar';
 import logotype from '../../assets/logotype.png';
 
-// Definimos los items de navegación aquí para que la Topbar sea autónoma
 const navItems = [
   {
     path: '/dashboard',
@@ -55,7 +56,8 @@ const navItems = [
 
 export function Topbar() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const pathname = usePathname();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
 
@@ -63,40 +65,37 @@ export function Topbar() {
     setShowUserMenu(false);
     setShowMobileNav(false);
     logout();
-    navigate('/login');
+    router.push('/login');
   };
+
+  const isActive = (path: string) =>
+    pathname === path || pathname.startsWith(path + '/');
 
   return (
     <header className="relative bg-[#151b3d] border-b border-white/10 px-4 lg:px-8 py-2 flex items-center justify-between sticky top-0 z-30 shadow-lg">
-      {/* Lado Izquierdo: Logo y Navegación Principal */}
       <div className="flex items-center gap-8">
-        {/* Logo de UN Wheels */}
-        <Link to="/dashboard" className="group">
-          <img src={logotype} alt="UN Wheels" className="h-12 group-hover:opacity-90 transition-opacity" />
+        <Link href="/dashboard" className="group">
+          <img src={logotype.src} alt="UN Wheels" className="h-12 group-hover:opacity-90 transition-opacity" />
         </Link>
 
-        {/* Navegación Horizontal (Desktop) */}
         <nav className="hidden lg:flex items-center gap-1">
           {navItems.map((item) => (
-            <NavLink
+            <Link
               key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-gray-200 hover:bg-white/10 hover:text-white'
-                }`
-              }
+              href={item.path}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                isActive(item.path)
+                  ? 'bg-primary/15 text-primary'
+                  : 'text-gray-200 hover:bg-white/10 hover:text-white'
+              }`}
             >
               {item.icon}
               {item.label}
-            </NavLink>
+            </Link>
           ))}
         </nav>
       </div>
 
-      {/* Lado Derecho: Notificaciones y Usuario */}
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -118,8 +117,6 @@ export function Topbar() {
           )}
         </button>
 
-
-        {/* Menú de Usuario */}
         <div className="relative">
           <button
             className="flex items-center gap-2 p-1 rounded-full hover:bg-[#45acab] transition-colors"
@@ -128,7 +125,7 @@ export function Topbar() {
               setShowMobileNav(false);
             }}
           >
-            <Avatar src={user?.profilePicture} alt={user?.fullName || 'User'} size="sm"  />
+            <Avatar src={user?.profilePicture} alt={user?.fullName || 'User'} size="sm" />
             <svg className="w-4 h-4 text-gray-200 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
@@ -142,14 +139,14 @@ export function Topbar() {
               </div>
               <div className="py-1">
                 <Link
-                  to="/profile"
+                  href="/profile"
                   className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   onClick={() => setShowUserMenu(false)}
                 >
-                   Perfil
+                  Perfil
                 </Link>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-                   Cerrar sesión
+                  Cerrar sesión
                 </button>
               </div>
             </div>
@@ -162,21 +159,19 @@ export function Topbar() {
           <div className="rounded-2xl border border-white/10 bg-[#151b3d] shadow-2xl p-2">
             <nav className="flex flex-col gap-1">
               {navItems.map((item) => (
-                <NavLink
+                <Link
                   key={`mobile-${item.path}`}
-                  to={item.path}
+                  href={item.path}
                   onClick={() => setShowMobileNav(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-primary/15 text-primary'
-                        : 'text-gray-200 hover:bg-white/10 hover:text-white'
-                    }`
-                  }
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive(item.path)
+                      ? 'bg-primary/15 text-primary'
+                      : 'text-gray-200 hover:bg-white/10 hover:text-white'
+                  }`}
                 >
                   {item.icon}
                   {item.label}
-                </NavLink>
+                </Link>
               ))}
             </nav>
           </div>

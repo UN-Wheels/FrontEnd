@@ -1,3 +1,4 @@
+'use client';
 import { ReactNode } from 'react';
 
 type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';

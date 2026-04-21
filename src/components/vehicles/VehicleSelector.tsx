@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '../ui';
 import { vehiclesService, Vehicle, CreateVehiclePayload } from '../../services/vehiclesService';

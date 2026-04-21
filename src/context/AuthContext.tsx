@@ -1,3 +1,4 @@
+'use client';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, LoginCredentials, RegisterData } from '../types';
 
@@ -13,7 +14,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL ?? "";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 // Adapta la respuesta del backend (snake_case, campos distintos) al tipo User del frontend
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

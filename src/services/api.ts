@@ -1,10 +1,5 @@
-// Cuando VITE_API_URL está vacío (dev local), usar path relativo para que
-// el proxy de Vite intercepte /api/* → localhost:8080 (api-gateway).
-// Vacío en .env.local → Vite proxea /api → localhost:8080 (dev)
-// Vacío en Docker build → nginx proxea /api → api-gateway (prod)
-// Con valor explícito → URL absoluta (útil si el gateway está en otro host)
-const API_BASE_URL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api`
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
   : '/api';
 
 interface RequestConfig extends RequestInit {
