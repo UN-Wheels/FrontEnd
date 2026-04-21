@@ -150,12 +150,14 @@ export function ChatPage() {
   useEffect(() => {
     if (!userId) return;
     const socket = socketService.connect();
-    socket.on('connect', () => setIsConnected(true));
-    socket.on('disconnect', () => setIsConnected(false));
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
     setIsConnected(socket.connected);
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
     };
   }, [userId]);
 
@@ -271,8 +273,8 @@ export function ChatPage() {
 
       try {
         const paged = await chatService.getMessages(selectedId);
-        // API devuelve más recientes primero → invertir
-        const items: LocalMessage[] = [...paged.items].reverse().map((m) => ({
+        // El repositorio ya devuelve items en orden ASC (cronológico)
+        const items: LocalMessage[] = paged.items.map((m) => ({
           id: m._id,
           senderId: m.senderId,
           content: m.content,
@@ -361,14 +363,43 @@ export function ChatPage() {
     setSending(true);
 
     try {
-      const result = await chatService.sendMessage(selectedId, content);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === tempId
-            ? { ...m, id: result.messageId, timestamp: result.createdAt, status: result.status as LocalMessage['status'] }
-            : m,
-        ),
-      );
+      if (socketService.isConnected()) {
+        const ack = await socketService.sendMessage(selectedId, content);
+
+        if (!ack.success || !ack.message) {
+          throw new Error(ack.error || 'No se pudo enviar mensaje por socket');
+        }
+
+        // Reemplazar optimista por el mensaje confirmado; el evento message:new
+        // puede llegar después y no duplicará por id.
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId
+              ? {
+                  ...m,
+                  id: ack.message!.messageId,
+                  timestamp: ack.message!.createdAt,
+                  status: ack.message!.status,
+                }
+              : m,
+          ),
+        );
+      } else {
+        // Fallback HTTP cuando no hay conexión en tiempo real.
+        const result = await chatService.sendMessage(selectedId, content);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId
+              ? {
+                  ...m,
+                  id: result.messageId,
+                  timestamp: result.createdAt,
+                  status: result.status as LocalMessage['status'],
+                }
+              : m,
+          ),
+        );
+      }
       setTimeout(() => inputRef.current?.focus(), 0);
     } catch (err) {
       console.error('Error al enviar:', err);

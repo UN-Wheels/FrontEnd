@@ -30,15 +30,30 @@ export interface SocketMessageStatusData {
   deliveredAt?: string;
 }
 
+export interface SocketSendMessageAck {
+  success: boolean;
+  error?: string;
+  message?: {
+    messageId: string;
+    conversationId: string;
+    senderId: string;
+    content: string;
+    status: 'SENT' | 'DELIVERED' | 'READ';
+    createdAt: string;
+  };
+}
+
 type MessageCallback = (data: SocketMessageData) => void;
 type NotificationCallback = (data: SocketNotificationData) => void;
 type StatusCallback = (data: SocketMessageStatusData) => void;
 
 // ─── URL de Socket.IO ─────────────────────────────────────────────────────────
-// En desarrollo, Vite proxea /socket.io → gateway vía vite.config.ts
-// En producción, VITE_API_URL apunta al gateway directamente
+// Conecta directo al gateway en dev (localhost:8080) para evitar problemas
+// del proxy de Vite con el handshake de Socket.IO (polling → upgrade WS).
+// En producción VITE_API_URL apunta al gateway.
 const SOCKET_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined) || window.location.origin;
+  (import.meta.env.VITE_API_URL as string | undefined) ||
+  (import.meta.env.DEV ? 'http://localhost:8080' : window.location.origin);
 
 class SocketService {
   private socket: Socket | null = null;
@@ -56,6 +71,10 @@ class SocketService {
 
     this.socket = io(SOCKET_URL, {
       withCredentials: true,
+      // Path que coincide con el proxy api/chat/* del gateway.
+      // El gateway hace pathRewrite '^/api/chat' → '' antes de forwarding al
+      // chat-service, tanto para HTTP polling como para el upgrade WebSocket.
+      path: '/api/chat/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
@@ -108,15 +127,43 @@ class SocketService {
   // ── Acciones del cliente ───────────────────────────────────────────────────
 
   joinConversation(conversationId: string): void {
-    this.socket?.emit('conversation:join', { conversationId });
+    if (!this.socket) return;
+    if (this.socket.connected) {
+      this.socket.emit('conversation:join', { conversationId });
+    } else {
+      this.socket.once('connect', () =>
+        this.socket?.emit('conversation:join', { conversationId }),
+      );
+    }
   }
 
   leaveConversation(conversationId: string): void {
     this.socket?.emit('conversation:leave', { conversationId });
   }
 
-  sendMessage(conversationId: string, content: string): void {
-    this.socket?.emit('message:send', { conversationId, content });
+  sendMessage(
+    conversationId: string,
+    content: string,
+  ): Promise<SocketSendMessageAck> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.socket.connected) {
+        reject(new Error('Socket no conectado'));
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout enviando mensaje por socket'));
+      }, 8000);
+
+      this.socket.emit(
+        'message:send',
+        { conversationId, content },
+        (ack: SocketSendMessageAck) => {
+          clearTimeout(timeout);
+          resolve(ack);
+        },
+      );
+    });
   }
 
   markAsRead(conversationId: string): void {
