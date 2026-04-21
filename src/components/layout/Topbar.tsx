@@ -69,7 +69,7 @@ export function Topbar() {
       <div className="flex items-center gap-8">
         {/* Logo de UN Wheels */}
         <Link to="/dashboard" className="group">
-          <img src={logotype} alt="UN Wheels" className="h-8 group-hover:opacity-90 transition-opacity" />
+          <img src={logotype} alt="UN Wheels" className="h-12 group-hover:opacity-90 transition-opacity" />
         </Link>
 
         {/* Navegación Horizontal (Desktop) */}

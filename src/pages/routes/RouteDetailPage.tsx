@@ -387,14 +387,6 @@ export function RouteDetailPage() {
             </div>
           </Card>
 
-          {/* Price */}
-          <Card>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Precio por cupo</span>
-              <span className="text-2xl font-bold text-primary">${route.price.toLocaleString()}</span>
-            </div>
-          </Card>
-
           {/* Available slots */}
           {slots.length > 0 && (
             <Card>

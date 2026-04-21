@@ -237,15 +237,7 @@ export function ProfilePage() {
             onChange={(e) => setEditData({ ...editData, fullName: e.target.value })}
             placeholder="Ingresa tu nombre completo"
           />
-
-          <Input
-            label="URL de Foto de Perfil"
-            value={editData.profilePicture}
-            onChange={(e) => setEditData({ ...editData, profilePicture: e.target.value })}
-            placeholder="https://ejemplo.com/foto.jpg"
-            helperText="Ingresa el enlace directo a tu imagen de perfil"
-          />
-
+          
           <Input
             label="Correo Electrónico"
             value={user?.email || ''}
