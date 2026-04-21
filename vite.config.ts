@@ -15,6 +15,12 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // Proxy WebSocket de Socket.IO → api-gateway → chat-service
+      '/socket.io': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 })

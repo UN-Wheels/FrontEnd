@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet';
 import { Card, CardTitle, Button, Badge, Loading, Modal } from '../../components/ui';
 import { routesService, reservationsService, ApiRoute, RouteSlot } from '../../services/routesService';
+import { chatService } from '../../services/chatService';
 import { useAuth } from '../../context/AuthContext';
 
 const originIcon = L.divIcon({
@@ -32,6 +33,10 @@ export function RouteDetailPage() {
   const [isLoading, setIsLoading]       = useState(true);
   const [error, setError]               = useState('');
   const [routeCoords, setRouteCoords]   = useState<[number, number][]>([]);
+
+  // Chat state
+  const [startingChat, setStartingChat] = useState(false);
+  const [chatError, setChatError] = useState('');
 
   // Booking modal state
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -98,6 +103,25 @@ export function RouteDetailPage() {
     const slot = slots.find(s => s.date.split('T')[0] === selectedDate) ?? null;
     setSelectedSlot(slot);
   }, [selectedDate, slots]);
+
+  const handleStartChat = async () => {
+    if (!route || !user) return;
+    setStartingChat(true);
+    setChatError('');
+    try {
+      const result = await chatService.createConversation(
+        route.id,
+        route.driverId,  // email del conductor
+        user.email,      // email del pasajero (usuario actual)
+      );
+      navigate(`/chat/${result.conversation._id}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo iniciar el chat';
+      setChatError(msg);
+    } finally {
+      setStartingChat(false);
+    }
+  };
 
   const handleOpenModal = () => {
     setSelectedDate('');
@@ -330,13 +354,27 @@ export function RouteDetailPage() {
               >
                 {slots.length === 0 ? 'Sin cupos disponibles' : 'Solicitar Cupo'}
               </Button>
-              <Button variant="outline" className="w-full" onClick={() => navigate('/chat')}>
-                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                Chatear con el conductor
-              </Button>
+              {/* Botón chat — solo si no es propia ruta */}
+              {user && route.driverId !== user.email && (
+                <div>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleStartChat}
+                    isLoading={startingChat}
+                    disabled={startingChat}
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    {startingChat ? 'Iniciando chat…' : 'Chatear con el conductor'}
+                  </Button>
+                  {chatError && (
+                    <p className="text-xs text-red-600 mt-1 text-center">{chatError}</p>
+                  )}
+                </div>
+              )}
             </div>
           </Card>
 

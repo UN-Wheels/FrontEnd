@@ -1,130 +1,421 @@
-import { useState, useEffect, useRef } from 'react';
-import { Avatar, Button, Loading, EmptyState } from '../../components/ui';
-import { mockService } from '../../services/mockData';
-import { Conversation, Message } from '../../types';
+import {
+  useState,
+  useEffect,
+  useRef,
+  useLayoutEffect,
+  useCallback,
+} from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Loading, EmptyState } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
+import {
+  chatService,
+  RouteConversationSummary,
+} from '../../services/chatService';
+import {
+  socketService,
+  SocketMessageData,
+  SocketMessageStatusData,
+} from '../../services/socketService';
+import { routesService } from '../../services/routesService';
+
+// ─── Íconos inline ────────────────────────────────────────────────────────────
+
+const SendIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+  </svg>
+);
+
+const ChatBubbleIcon = () => (
+  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+  </svg>
+);
+
+const ArrowLeftIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+  </svg>
+);
+
+const CheckIcon = ({ double = false }: { double?: boolean }) => (
+  double ? (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M5 13l4 4L19 7M1 13l4 4" />
+    </svg>
+  ) : (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  )
+);
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('es-CO', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Hoy';
+  if (d.toDateString() === yesterday.toDateString()) return 'Ayer';
+  return d.toLocaleDateString('es-CO', { month: 'short', day: 'numeric' });
+}
+
+function conversationLabel(conv: RouteConversationSummary): string {
+  return conv.otherUserRole === 'driver' ? 'Conductor' : 'Pasajero';
+}
+
+function shortId(str: string): string {
+  if (str.includes('@')) return str.split('@')[0];
+  return str.slice(0, 10);
+}
+
+// ─── Tipos locales ─────────────────────────────────────────────────────────────
+
+interface LocalMessage {
+  id: string;
+  senderId: string;
+  content: string;
+  timestamp: string;
+  status: 'SENT' | 'DELIVERED' | 'READ';
+}
+
+// ─── Componente ───────────────────────────────────────────────────────────────
 
 export function ChatPage() {
+  const { conversationId: paramId } = useParams<{ conversationId?: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
+
+  // userId = email (mismo que usa el chat-service en JWT sub)
+  const userId = user?.email ?? '';
+
+  // ── Estado ────────────────────────────────────────────────────────────────
+  const [conversations, setConversations] = useState<RouteConversationSummary[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(paramId ?? null);
+  const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [routeLabel, setRouteLabel] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [loadingConvs, setLoadingConvs] = useState(true);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevConvRef = useRef<string | null>(null);
+  const isLoadingRef = useRef(false);
+
+  // ── Cargar conversaciones ────────────────────────────────────────────────
+  const loadConversations = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const data = await chatService.getUserConversations(userId);
+      setConversations(data);
+    } catch (err) {
+      console.error('Error al cargar conversaciones:', err);
+    }
+  }, [userId]);
 
   useEffect(() => {
-    const fetchConversations = async () => {
-      setIsLoading(true);
-      try {
-        const data = await mockService.getConversations();
-        setConversations(data);
-        if (data.length > 0) {
-          setSelectedConversation(data[0]);
+    const init = async () => {
+      setLoadingConvs(true);
+      await loadConversations();
+      setLoadingConvs(false);
+    };
+    init();
+  }, [loadConversations]);
+
+  // Sync selectedId con URL param
+  useEffect(() => {
+    if (paramId) setSelectedId(paramId);
+  }, [paramId]);
+
+  // ── Socket.IO ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    const socket = socketService.connect();
+    socket.on('connect', () => setIsConnected(true));
+    socket.on('disconnect', () => setIsConnected(false));
+    setIsConnected(socket.connected);
+    return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+    };
+  }, [userId]);
+
+  // Listener: nuevos mensajes
+  useEffect(() => {
+    const cleanup = socketService.onNewMessage((data: SocketMessageData) => {
+      if (data.conversationId !== prevConvRef.current) {
+        loadConversations();
+        return;
+      }
+
+      setMessages((prev) => {
+        const isDup = prev.some(
+          (m) =>
+            m.id === data.messageId ||
+            (m.id.startsWith('temp-') &&
+              m.content === data.content &&
+              m.senderId === data.senderId),
+        );
+        if (isDup) {
+          return prev.map((m) =>
+            m.id.startsWith('temp-') &&
+            m.content === data.content &&
+            m.senderId === data.senderId
+              ? { ...m, id: data.messageId, timestamp: data.createdAt, status: data.status }
+              : m,
+          );
         }
-      } catch (error) {
-        console.error('Error al obtener conversaciones:', error);
-      } finally {
-        setIsLoading(false);
+        const newMsg: LocalMessage = {
+          id: data.messageId,
+          senderId: data.senderId,
+          content: data.content,
+          timestamp: data.createdAt,
+          status: data.status,
+        };
+        return [...prev, newMsg];
+      });
+
+      // Marcar como leído si es del otro
+      if (data.senderId !== userId && prevConvRef.current) {
+        socketService.markAsRead(prevConvRef.current);
       }
-    };
 
-    fetchConversations();
-  }, []);
+      loadConversations();
+    });
+    return cleanup;
+  }, [userId, loadConversations]);
 
+  // Listener: cambio de estado (read/delivered)
   useEffect(() => {
-    const fetchMessages = async () => {
-      if (!selectedConversation) return;
+    const cleanup = socketService.onMessageStatus((data: SocketMessageStatusData) => {
+      if (data.conversationId !== prevConvRef.current) return;
+      if (data.bulkStatus === 'READ') {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.senderId === userId ? { ...m, status: 'READ' } : m,
+          ),
+        );
+      } else if (data.bulkStatus === 'DELIVERED') {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.senderId === userId && m.status === 'SENT'
+              ? { ...m, status: 'DELIVERED' }
+              : m,
+          ),
+        );
+      } else if (data.messageId && data.status) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.messageId
+              ? { ...m, status: data.status as LocalMessage['status'] }
+              : m,
+          ),
+        );
+      }
+    });
+    return cleanup;
+  }, [userId]);
+
+  // Listener: notificaciones de otras conversaciones
+  useEffect(() => {
+    const cleanup = socketService.onNotification((data) => {
+      if (data.type === 'chat_message') loadConversations();
+    });
+    return cleanup;
+  }, [loadConversations]);
+
+  // ── Cargar mensajes al seleccionar conversación ──────────────────────────
+  useEffect(() => {
+    if (!selectedId || !userId) {
+      if (prevConvRef.current) {
+        socketService.leaveConversation(prevConvRef.current);
+        prevConvRef.current = null;
+      }
+      setMessages([]);
+      setRouteLabel('');
+      return;
+    }
+
+    if (prevConvRef.current === selectedId) return;
+    if (isLoadingRef.current) return;
+
+    const load = async () => {
+      isLoadingRef.current = true;
+
+      if (prevConvRef.current) {
+        socketService.leaveConversation(prevConvRef.current);
+      }
+      prevConvRef.current = selectedId;
+
+      setLoadingMsgs(true);
+      setMessages([]);
+
       try {
-        const data = await mockService.getMessages(selectedConversation.id);
-        setMessages(data);
-      } catch (error) {
-        console.error('Error al obtener mensajes:', error);
+        const paged = await chatService.getMessages(selectedId);
+        // API devuelve más recientes primero → invertir
+        const items: LocalMessage[] = [...paged.items].reverse().map((m) => ({
+          id: m._id,
+          senderId: m.senderId,
+          content: m.content,
+          timestamp: m.createdAt,
+          status: m.status,
+        }));
+        setMessages(items);
+
+        // Unirse al room
+        socketService.joinConversation(selectedId);
+
+        // Marcar como leído si hay mensajes del otro sin leer
+        const hasUnread = items.some(
+          (m) => m.senderId !== userId && m.status !== 'READ',
+        );
+        if (hasUnread) {
+          socketService.markAsRead(selectedId);
+          chatService.markAsRead(selectedId).catch(() => {});
+        }
+
+        // Obtener info de la ruta para mostrar en header
+        const conv = conversations.find((c) => c.conversationId === selectedId);
+        if (conv?.routeId) {
+          routesService
+            .getRouteById(conv.routeId)
+            .then((r) => {
+              const orig = r.origin.address.split(',')[0];
+              const dest = r.destination.address.split(',')[0];
+              setRouteLabel(`${orig} → ${dest}`);
+            })
+            .catch(() => setRouteLabel(''));
+        }
+      } catch (err) {
+        console.error('Error cargando mensajes:', err);
+      } finally {
+        setLoadingMsgs(false);
+        isLoadingRef.current = false;
       }
     };
 
-    fetchMessages();
-  }, [selectedConversation]);
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, userId]);
 
-  useEffect(() => {
-    scrollToBottom();
+  // ── Scroll automático ────────────────────────────────────────────────────
+  useLayoutEffect(() => {
+    const c = containerRef.current;
+    if (!c) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    try {
+      c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' });
+    } catch {
+      c.scrollTop = c.scrollHeight;
+    }
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // Cleanup al desmontar
+  useEffect(() => {
+    return () => {
+      if (prevConvRef.current) {
+        socketService.leaveConversation(prevConvRef.current);
+      }
+    };
+  }, []);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  // ── Enviar mensaje ────────────────────────────────────────────────────────
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedConversation || !user) return;
+    const content = input.trim();
+    if (!content || !selectedId || !userId || sending) return;
+    if (content.length > 2000) return;
 
-    const otherParticipant = selectedConversation.participants.find(p => p.id !== user.id);
-    if (!otherParticipant) return;
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: LocalMessage = {
+      id: tempId,
+      senderId: userId,
+      content,
+      timestamp: new Date().toISOString(),
+      status: 'SENT',
+    };
 
-    setIsSending(true);
+    setMessages((prev) => [...prev, optimistic]);
+    setInput('');
+    setSending(true);
+
     try {
-      const sentMessage = await mockService.sendMessage(
-        selectedConversation.id,
-        newMessage,
-        user.id,
-        otherParticipant.id
+      const result = await chatService.sendMessage(selectedId, content);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? { ...m, id: result.messageId, timestamp: result.createdAt, status: result.status as LocalMessage['status'] }
+            : m,
+        ),
       );
-      setMessages(prev => [...prev, sentMessage]);
-      setNewMessage('');
-      inputRef.current?.focus();
-    } catch (error) {
-      console.error('Error al enviar mensaje:', error);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    } catch (err) {
+      console.error('Error al enviar:', err);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
-      setIsSending(false);
+      setSending(false);
     }
   };
 
-  const getOtherParticipant = (conversation: Conversation) => {
-    return conversation.participants.find(p => p.id !== user?.id) || conversation.participants[0];
+  // ── Seleccionar conversación ──────────────────────────────────────────────
+  const handleSelectConv = (id: string) => {
+    navigate(`/chat/${id}`);
+    setSelectedId(id);
   };
 
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('es-CO', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const handleBack = () => {
+    navigate('/chat');
+    setSelectedId(null);
+    setMessages([]);
+    setRouteLabel('');
   };
 
-  const formatDate = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+  // ── Datos derivados ───────────────────────────────────────────────────────
+  const filtered = conversations.filter((c) =>
+    conversationLabel(c).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.otherUserId.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
 
-    if (date.toDateString() === today.toDateString()) {
-      return 'Hoy';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Ayer';
-    }
-    return date.toLocaleDateString('es-CO', { month: 'short', day: 'numeric' });
-  };
+  const selectedConv = conversations.find((c) => c.conversationId === selectedId) ?? null;
 
-  if (isLoading) {
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (loadingConvs) {
     return (
       <div className="flex justify-center items-center min-h-[500px]">
-        <Loading size="lg" message="Cargando chats..." />
+        <Loading size="lg" message="Cargando mensajes..." />
       </div>
     );
   }
 
-  if (conversations.length === 0) {
+  if (!loadingConvs && conversations.length === 0) {
     return (
       <div className="min-h-[500px] flex items-center justify-center">
         <EmptyState
-          icon={
-            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-          }
-          title="No tienes mensajes aún"
-          description="Reserva un viaje para comenzar a chatear. Podrás hablar con los conductores una vez que tengas una reserva confirmada."
+          icon={<ChatBubbleIcon />}
+          title="Sin conversaciones"
+          description="Contacta al conductor de una ruta para iniciar un chat."
         />
       </div>
     );
@@ -132,50 +423,73 @@ export function ChatPage() {
 
   return (
     <div className="h-[calc(100vh-180px)] flex rounded-xl overflow-hidden bg-white shadow-soft animate-fade-in">
-      {/* Lista de conversaciones */}
-      <div className="w-80 border-r border-gray-100 flex flex-col bg-gray-50">
+      {/* ── Panel izquierdo: lista de conversaciones ─────────────────────── */}
+      <div
+        className={`w-full md:w-80 border-r border-gray-100 flex flex-col bg-gray-50 flex-shrink-0 ${
+          selectedId ? 'hidden md:flex' : 'flex'
+        }`}
+      >
+        {/* Header lista */}
         <div className="p-4 border-b border-gray-100 bg-white">
-          <h2 className="font-semibold text-gray-900">Mensajes</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-gray-900">Mensajes</h2>
+            {isConnected && (
+              <span
+                className="w-2 h-2 rounded-full bg-green-500"
+                title="Conectado en tiempo real"
+              />
+            )}
+          </div>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar conversación..."
+            className="w-full px-3 py-2 text-sm bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
         </div>
-        
+
+        {/* Lista */}
         <div className="flex-1 overflow-y-auto">
-          {conversations.map((conversation) => {
-            const otherUser = getOtherParticipant(conversation);
-            const isSelected = selectedConversation?.id === conversation.id;
+          {filtered.map((conv) => {
+            const isSelected = conv.conversationId === selectedId;
+            const label = conversationLabel(conv);
+            const sub = shortId(conv.otherUserId);
+            const time = conv.lastMessageAt
+              ? formatTime(conv.lastMessageAt)
+              : '';
 
             return (
               <button
-                key={conversation.id}
-                className={`w-full p-4 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left ${
-                  isSelected ? 'bg-primary/5 border-l-4 border-primary' : ''
+                key={conv.conversationId}
+                onClick={() => handleSelectConv(conv.conversationId)}
+                className={`w-full px-4 py-3 flex items-start gap-3 text-left transition-colors border-b border-gray-100 hover:bg-gray-100 ${
+                  isSelected ? 'bg-primary/5 border-l-4 border-l-primary' : ''
                 }`}
-                onClick={() => setSelectedConversation(conversation)}
               >
-                <div className="relative">
-                  <Avatar
-                    src={otherUser.profilePicture}
-                    alt={otherUser.fullName}
-                    size="md"
-                  />
-                  {conversation.unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-white text-xs rounded-full flex items-center justify-center">
-                      {conversation.unreadCount}
-                    </span>
-                  )}
+                {/* Avatar */}
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-primary font-bold text-sm">
+                  {label[0]}
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900 truncate">{otherUser.fullName}</p>
-                    {conversation.lastMessage && (
-                      <span className="text-xs text-gray-400">
-                        {formatTime(conversation.lastMessage.timestamp)}
-                      </span>
-                    )}
+                    <p className="font-medium text-gray-900 truncate text-sm">{label}</p>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                      {conv.unreadCount > 0 && (
+                        <span className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center">
+                          {conv.unreadCount}
+                        </span>
+                      )}
+                      {time && (
+                        <span className="text-xs text-gray-400">{time}</span>
+                      )}
+                    </div>
                   </div>
-                  {conversation.lastMessage && (
-                    <p className="text-sm text-gray-500 truncate">
-                      {conversation.lastMessage.senderId === user?.id ? 'Tú: ' : ''}
-                      {conversation.lastMessage.content}
+                  <p className="text-xs text-gray-400 truncate">{sub}</p>
+                  {conv.lastMessageText && (
+                    <p className="text-sm text-gray-500 truncate mt-0.5">
+                      {conv.lastMessageText}
                     </p>
                   )}
                 </div>
@@ -185,114 +499,168 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Área del Chat */}
-      {selectedConversation ? (
-        <div className="flex-1 flex flex-col">
-          {/* Cabecera del chat */}
-          <div className="p-4 border-b border-gray-100 flex items-center gap-3 bg-white">
-            <Avatar
-              src={getOtherParticipant(selectedConversation).profilePicture}
-              alt={getOtherParticipant(selectedConversation).fullName}
-              size="md"
-            />
-            <div>
-              <p className="font-semibold text-gray-900">
-                {getOtherParticipant(selectedConversation).fullName}
-              </p>
-              <p className="text-sm text-gray-500">
-                {getOtherParticipant(selectedConversation).university}
-              </p>
-            </div>
-          </div>
-
-          {/* Mensajes */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-            {messages.map((message, index) => {
-              const isOwnMessage = message.senderId === user?.id;
-              const showDate =
-                index === 0 ||
-                formatDate(messages[index - 1].timestamp) !== formatDate(message.timestamp);
-
-              return (
-                <div key={message.id}>
-                  {showDate && (
-                    <div className="text-center my-4">
-                      <span className="text-xs text-gray-400 bg-white px-3 py-1 rounded-full">
-                        {formatDate(message.timestamp)}
-                      </span>
-                    </div>
-                  )}
-                  <div
-                    className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                        isOwnMessage
-                          ? 'bg-primary text-white rounded-br-md'
-                          : 'bg-white text-gray-900 rounded-bl-md shadow-sm'
-                      }`}
-                    >
-                      <p className="text-sm">{message.content}</p>
-                      <p
-                        className={`text-xs mt-1 ${
-                          isOwnMessage ? 'text-white/70' : 'text-gray-400'
-                        }`}
-                      >
-                        {formatTime(message.timestamp)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Entrada de mensaje */}
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-100 bg-white">
-            <div className="flex items-center gap-3">
+      {/* ── Panel derecho: área de chat ──────────────────────────────────── */}
+      <div
+        className={`flex-1 flex flex-col ${
+          selectedId ? 'flex' : 'hidden md:flex'
+        }`}
+      >
+        {selectedConv || selectedId ? (
+          <>
+            {/* Header del chat */}
+            <div className="px-4 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
               <button
-                type="button"
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Adjuntar archivo"
+                onClick={handleBack}
+                className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600"
+                aria-label="Volver"
               >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
+                <ArrowLeftIcon />
               </button>
-              <input
-                ref={inputRef}
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Escribe un mensaje..."
-                className="flex-1 px-4 py-2.5 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                className="rounded-full w-10 h-10 p-0"
-                disabled={!newMessage.trim() || isSending}
-              >
-                {isSending ? (
-                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                )}
-              </Button>
+
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                {selectedConv ? conversationLabel(selectedConv)[0] : '?'}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 text-sm">
+                  {selectedConv ? conversationLabel(selectedConv) : 'Chat'}
+                </p>
+                {routeLabel ? (
+                  <p className="text-xs text-gray-500 truncate">{routeLabel}</p>
+                ) : selectedConv ? (
+                  <p className="text-xs text-gray-400 truncate">
+                    {shortId(selectedConv.otherUserId)}
+                  </p>
+                ) : null}
+              </div>
+
+              {isConnected && (
+                <span
+                  className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"
+                  title="En línea"
+                />
+              )}
             </div>
-          </form>
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center bg-gray-50">
-          <p className="text-gray-500">Selecciona una conversación para empezar a chatear</p>
-        </div>
-      )}
+
+            {/* Mensajes */}
+            <div
+              ref={containerRef}
+              className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50"
+            >
+              {loadingMsgs ? (
+                <div className="flex justify-center items-center h-full">
+                  <Loading size="md" message="Cargando mensajes..." />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex justify-center items-center h-full">
+                  <p className="text-sm text-gray-400">
+                    Sin mensajes aún. ¡Empieza la conversación!
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {messages.map((msg, idx) => {
+                    const isOwn = msg.senderId === userId;
+                    const showDate =
+                      idx === 0 ||
+                      formatDate(messages[idx - 1].timestamp) !==
+                        formatDate(msg.timestamp);
+
+                    return (
+                      <div key={msg.id}>
+                        {showDate && (
+                          <div className="text-center my-3">
+                            <span className="text-xs text-gray-400 bg-white px-3 py-1 rounded-full shadow-sm">
+                              {formatDate(msg.timestamp)}
+                            </span>
+                          </div>
+                        )}
+                        <div
+                          className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[70%] px-4 py-2 rounded-2xl ${
+                              isOwn
+                                ? 'bg-primary text-white rounded-br-md'
+                                : 'bg-white text-gray-900 rounded-bl-md shadow-sm'
+                            }`}
+                          >
+                            <p className="text-sm break-words whitespace-pre-wrap">
+                              {msg.content}
+                            </p>
+                            <div
+                              className={`flex items-center justify-end gap-1 mt-0.5 ${
+                                isOwn ? 'text-white/70' : 'text-gray-400'
+                              }`}
+                            >
+                              <span className="text-xs">
+                                {formatTime(msg.timestamp)}
+                              </span>
+                              {isOwn && (
+                                <span title={msg.status === 'READ' ? 'Leído' : 'Entregado'}>
+                                  <CheckIcon double={msg.status !== 'SENT'} />
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+
+            {/* Input de mensaje */}
+            <form
+              onSubmit={handleSend}
+              className="px-4 py-3 border-t border-gray-100 bg-white"
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Escribe un mensaje..."
+                  maxLength={2000}
+                  disabled={sending}
+                  className="flex-1 px-4 py-2.5 text-sm bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || sending}
+                  className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                  aria-label="Enviar"
+                >
+                  {sending ? (
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10"
+                        stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <SendIcon />
+                  )}
+                </button>
+              </div>
+            </form>
+          </>
+        ) : (
+          /* Estado vacío - desktop */
+          <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 gap-3">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+              <ChatBubbleIcon />
+            </div>
+            <h3 className="font-semibold text-gray-900">Selecciona una conversación</h3>
+            <p className="text-sm text-gray-500 text-center max-w-xs">
+              Elige un chat de la lista o contacta al conductor de una ruta.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
