@@ -73,6 +73,10 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('es-CO', { month: 'short', day: 'numeric' });
 }
 
+function getRoleLabel(role?: 'driver' | 'passenger'): string {
+  return role === 'driver' ? 'Conductor' : role === 'passenger' ? 'Pasajero' : '';
+}
+
 
 
 // ─── Tipos locales ─────────────────────────────────────────────────────────────
@@ -530,7 +534,14 @@ export function ChatPage() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900 truncate text-sm">{name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 truncate text-sm">{name}</p>
+                      {conv.otherUserRole && (
+                        <span className="text-xs text-gray-400 font-medium px-1.5 py-0.5 bg-gray-100 rounded">
+                          {getRoleLabel(conv.otherUserRole)}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                       {conv.unreadCount > 0 && (
                         <span className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center">
@@ -577,13 +588,21 @@ export function ChatPage() {
                 const headerName = selectedConv
                   ? (userNames.get(selectedConv.otherUserId) ?? selectedConv.otherUserId.split('@')[0])
                   : '?';
+                const headerRole = selectedConv ? getRoleLabel(selectedConv.otherUserRole) : '';
                 return (
                   <>
                     <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
                       {headerName[0]?.toUpperCase() ?? '?'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 text-sm">{selectedConv ? headerName : 'Chat'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-900 text-sm">{selectedConv ? headerName : 'Chat'}</p>
+                        {headerRole && (
+                          <span className="text-xs text-gray-500 font-medium px-1.5 py-0.5 bg-gray-100 rounded">
+                            {headerRole}
+                          </span>
+                        )}
+                      </div>
                       {routeLabel ? (
                         <p className="text-xs text-gray-500 truncate">{routeLabel}</p>
                       ) : selectedConv ? (
