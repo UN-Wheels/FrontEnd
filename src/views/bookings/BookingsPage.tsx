@@ -1,183 +1,102 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Badge, Loading, Modal } from '../../components/ui';
-import {
-  reservationsService,
-  routesService,
-  ApiReservation,
-  ApiRoute,
-} from '../../services/routesService';
+import { ApiReservation, ApiRoute } from '../../services/routesService';
 import { useAuth } from '../../context/AuthContext';
 import { AvailabilityManager } from '../../components/availability/AvailabilityManager';
-import { vehiclesService, Vehicle } from '../../services/vehiclesService';
+import { shortAddr, fmtDate, fmtTime } from '../../lib/format';
 import { chatService } from '../../services/chatService';
+import {
+  useMyRoutes,
+  useDriverPendingRequests,
+  useDriverConfirmedTrips,
+  usePassengerPendingRequests,
+  usePassengerConfirmedTrips,
+  useRoutesByIds,
+  useAcceptReservation,
+  useRejectReservation,
+  useDeleteRoute,
+} from '../../hooks/queries';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const shortAddr = (addr: string) => addr.split(',')[0].trim();
-
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('es-CO', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
-
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pendiente',
-  CONFIRMED: 'Confirmado',
-  REJECTED: 'Rechazado',
-  CANCELLED: 'Cancelado',
+  PENDING: 'Pendiente', CONFIRMED: 'Confirmado', REJECTED: 'Rechazado', CANCELLED: 'Cancelado',
 };
-
 const STATUS_VARIANT: Record<string, 'warning' | 'success' | 'danger' | 'default'> = {
-  PENDING: 'warning',
-  CONFIRMED: 'success',
-  REJECTED: 'danger',
-  CANCELLED: 'default',
+  PENDING: 'warning', CONFIRMED: 'success', REJECTED: 'danger', CANCELLED: 'default',
 };
-
 const ROUTE_STATUS_LABEL: Record<string, string> = {
-  ACTIVE: 'Activa',
-  IN_PROGRESS: 'En curso',
-  'IN PROGRESS': 'En curso',  // legacy variant
-  COMPLETED: 'Finalizada',
-  INACTIVE: 'Inactiva',
+  ACTIVE: 'Activa', IN_PROGRESS: 'En curso', 'IN PROGRESS': 'En curso', COMPLETED: 'Finalizada', INACTIVE: 'Inactiva',
 };
-
 const ROUTE_STATUS_VARIANT: Record<string, 'success' | 'warning' | 'default' | 'danger'> = {
-  ACTIVE: 'success',
-  IN_PROGRESS: 'warning',
-  'IN PROGRESS': 'warning',
-  COMPLETED: 'default',
-  INACTIVE: 'danger',
+  ACTIVE: 'success', IN_PROGRESS: 'warning', 'IN PROGRESS': 'warning', COMPLETED: 'default', INACTIVE: 'danger',
 };
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Componente ───────────────────────────────────────────────────────────────
 
 export function BookingsPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [chatError, setChatError] = useState('');
+  // ── Queries ────────────────────────────────────────────────────────────────
+  const { data: myRoutes      = [], isLoading: loadRoutes    } = useMyRoutes();
+  const { data: driverPending = [], isLoading: loadDrPend    } = useDriverPendingRequests();
+  const { data: driverConfirmed=[], isLoading: loadDrConf   } = useDriverConfirmedTrips();
+  const { data: myPending     = [], isLoading: loadPaxPend   } = usePassengerPendingRequests();
+  const { data: myConfirmed   = [], isLoading: loadPaxConf   } = usePassengerConfirmedTrips();
 
-  // Conductor data
-  const [myRoutes, setMyRoutes] = useState<ApiRoute[]>([]);
-  const [driverPending, setDriverPending] = useState<ApiReservation[]>([]);
-  const [driverConfirmed, setDriverConfirmed] = useState<ApiReservation[]>([]);
-  const [, setMyVehicles] = useState<Vehicle[]>([]);
+  const isLoading = loadRoutes || loadDrPend || loadDrConf || loadPaxPend || loadPaxConf;
 
-  // Pasajero data
-  const [myPending, setMyPending] = useState<ApiReservation[]>([]);
-  const [myConfirmed, setMyConfirmed] = useState<ApiReservation[]>([]);
-  const [passengerRouteMap, setPassengerRouteMap] = useState<Map<string, ApiRoute>>(new Map());
+  // Obtener detalles de rutas para las reservas de pasajero (N ids → 1 cache compartida)
+  const passengerRouteIds = useMemo(() => {
+    const all = [...myPending, ...myConfirmed];
+    return [...new Set(all.map(r => r.routeId))];
+  }, [myPending, myConfirmed]);
 
-  // Action modal
-  const [actionModal, setActionModal] = useState<{
-    reservation: ApiReservation;
-    type: 'accept' | 'reject';
-  } | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { map: passengerRouteMap } = useRoutesByIds(passengerRouteIds);
 
-  // Delete route modal
-  const [deleteModal, setDeleteModal] = useState<ApiRoute | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const acceptMutation = useAcceptReservation();
+  const rejectMutation = useRejectReservation();
+  const deleteMutation = useDeleteRoute();
 
-  // Availability modal
+  // ── UI state ───────────────────────────────────────────────────────────────
+  const [actionModal, setActionModal]   = useState<{ reservation: ApiReservation; type: 'accept' | 'reject' } | null>(null);
+  const [deleteModal, setDeleteModal]   = useState<ApiRoute | null>(null);
   const [availabilityRouteId, setAvailabilityRouteId] = useState<string | null>(null);
+  const [chatError,    setChatError]    = useState('');
   const [chatOpeningKey, setChatOpeningKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    const load = async () => {
-      setIsLoading(true);
-      setError('');
-      try {
-        const [routes, drPending, drConfirmed, paxPending, paxConfirmed, vehicles] = await Promise.all([
-          routesService.getMyRoutes(),
-          reservationsService.getDriverPendingRequests(),
-          reservationsService.getDriverConfirmedTrips(),
-          reservationsService.getMyPendingRequests(),
-          reservationsService.getMyConfirmedTrips(),
-          vehiclesService.getMyVehicles().catch(() => [] as Vehicle[]),
-        ]);
-        setMyRoutes(routes);
-        setDriverPending(drPending);
-        setDriverConfirmed(drConfirmed);
-        setMyPending(paxPending);
-        setMyConfirmed(paxConfirmed);
-        setMyVehicles(vehicles);
-
-        // Enrich passenger reservations with route details
-        const allPax = [...paxPending, ...paxConfirmed];
-        const uniqueIds = [...new Set(allPax.map(r => r.routeId))];
-        const fetched = await Promise.all(
-          uniqueIds.map(id =>
-            routesService.getRouteById(id)
-              .then(route => [id, route] as [string, ApiRoute])
-              .catch(() => null)
-          )
-        );
-        const map = new Map<string, ApiRoute>();
-        fetched.forEach(e => { if (e) map.set(e[0], e[1]); });
-        setPassengerRouteMap(map);
-      } catch (err) {
-        console.error(err);
-        setError('No se pudieron cargar los datos. Intenta de nuevo.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
-  }, []);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const handleAction = async () => {
     if (!actionModal) return;
-    setIsProcessing(true);
     try {
-      const { reservation, type } = actionModal;
-      if (type === 'accept') {
-        const updated = await reservationsService.acceptReservation(reservation.id);
-        setDriverPending(prev => prev.filter(r => r.id !== updated.id));
-        setDriverConfirmed(prev => [updated, ...prev]);
+      if (actionModal.type === 'accept') {
+        await acceptMutation.mutateAsync(actionModal.reservation.id);
       } else {
-        const updated = await reservationsService.rejectReservation(reservation.id);
-        setDriverPending(prev => prev.map(r => r.id === updated.id ? updated : r));
+        await rejectMutation.mutateAsync(actionModal.reservation.id);
       }
       setActionModal(null);
     } catch (err) {
       console.error(err);
-    } finally {
-      setIsProcessing(false);
     }
   };
 
   const handleDeleteRoute = async () => {
     if (!deleteModal) return;
-    setIsDeleting(true);
     try {
-      await routesService.deleteRoute(deleteModal.id);
-      setMyRoutes(prev => prev.filter(r => r.id !== deleteModal.id));
+      await deleteMutation.mutateAsync(deleteModal.id);
       setDeleteModal(null);
     } catch (err) {
       console.error(err);
-    } finally {
-      setIsDeleting(false);
     }
   };
 
   const openOrCreateChat = async (
-    routeId: string,
-    driverId: string,
-    passengerId: string,
-    actionKey: string,
+    routeId: string, driverId: string, passengerId: string, actionKey: string,
   ) => {
     setChatError('');
     setChatOpeningKey(actionKey);
@@ -194,23 +113,13 @@ export function BookingsPage() {
 
   // ── Sub-components ─────────────────────────────────────────────────────────
 
-  const RequestRow = ({
-    reservation,
-    route,
-  }: {
-    reservation: ApiReservation;
-    route: ApiRoute;
-  }) => (
+  const RequestRow = ({ reservation, route }: { reservation: ApiReservation; route: ApiRoute }) => (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 px-3 rounded-xl border border-slate-100 bg-white hover:border-primary/25 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
           <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-            />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
         </div>
         <div className="min-w-0">
@@ -223,40 +132,23 @@ export function BookingsPage() {
           )}
         </div>
       </div>
-
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
         <Badge variant={STATUS_VARIANT[reservation.status] ?? 'default'} size="sm">
           {STATUS_LABEL[reservation.status] ?? reservation.status}
         </Badge>
-
         <Button
-          variant="secondary"
-          size="sm"
+          variant="secondary" size="sm"
           isLoading={chatOpeningKey === `driver-${reservation.id}`}
-          onClick={() =>
-            openOrCreateChat(
-              route.id,
-              route.driverId,
-              reservation.passengerId,
-              `driver-${reservation.id}`,
-            )
-          }
+          onClick={() => openOrCreateChat(route.id, route.driverId, reservation.passengerId, `driver-${reservation.id}`)}
         >
           Chat
         </Button>
-
         {reservation.status === 'PENDING' && (
           <>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setActionModal({ reservation, type: 'accept' })}
-            >
+            <Button variant="primary" size="sm" onClick={() => setActionModal({ reservation, type: 'accept' })}>
               Aceptar
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+            <Button variant="ghost" size="sm"
               onClick={() => setActionModal({ reservation, type: 'reject' })}
               className="text-red-600 hover:text-red-700 hover:bg-red-50"
             >
@@ -269,17 +161,13 @@ export function BookingsPage() {
   );
 
   const DriverRouteCard = ({ route }: { route: ApiRoute }) => {
-    const pending = driverPending.filter(r => r.routeId === route.id && r.status === 'PENDING');
+    const pending   = driverPending.filter(r => r.routeId === route.id && r.status === 'PENDING');
     const confirmed = driverConfirmed.filter(r => r.routeId === route.id);
-    const allRequests = [
-      ...driverPending.filter(r => r.routeId === route.id),
-      ...confirmed,
-    ];
-    const vehicle = route.vehicle?.plate ? route.vehicle : undefined;
+    const allReqs   = [...driverPending.filter(r => r.routeId === route.id), ...confirmed];
+    const vehicle   = route.vehicle?.plate ? route.vehicle : undefined;
 
     return (
       <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-[0_10px_28px_rgba(8,20,46,0.16)]">
-        {/* Route header */}
         <div className="flex items-start sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50/70">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex flex-col items-center gap-1 flex-shrink-0">
@@ -289,15 +177,11 @@ export function BookingsPage() {
             </div>
             <div className="min-w-0">
               <p className="font-semibold text-slate-900 truncate text-sm sm:text-[15px]">
-                {shortAddr(route.origin.address)}
-                <span className="text-gray-400 mx-1.5">→</span>
-                {shortAddr(route.destination.address)}
+                {shortAddr(route.origin.address)}<span className="text-gray-400 mx-1.5">→</span>{shortAddr(route.destination.address)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
                 {fmtTime(route.departureTime)} · ${route.price.toLocaleString()} por cupo
-                {vehicle && (
-                  <span className="ml-2 text-slate-400">· {vehicle.plate} ({vehicle.vehicle_type})</span>
-                )}
+                {vehicle && <span className="ml-2 text-slate-400">· {vehicle.plate} ({vehicle.vehicle_type})</span>}
               </p>
             </div>
           </div>
@@ -305,33 +189,19 @@ export function BookingsPage() {
             <Badge variant={ROUTE_STATUS_VARIANT[route.status] ?? 'default'} size="sm">
               {ROUTE_STATUS_LABEL[route.status] ?? route.status}
             </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAvailabilityRouteId(route.id)}
-              title="Gestionar disponibilidad"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setAvailabilityRouteId(route.id)} title="Gestionar disponibilidad">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push(`/routes/${route.id}`)}
-              title="Ver ruta"
-            >
+            <Button variant="ghost" size="sm" onClick={() => router.push(`/routes/${route.id}`)} title="Ver ruta">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDeleteModal(route)}
-              title="Eliminar ruta"
+            <Button variant="ghost" size="sm" onClick={() => setDeleteModal(route)} title="Eliminar ruta"
               className="text-red-400 hover:text-red-600 hover:bg-red-50"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -342,8 +212,7 @@ export function BookingsPage() {
           </div>
         </div>
 
-        {/* Request counts pill */}
-        {allRequests.length > 0 && (
+        {allReqs.length > 0 && (
           <div className="px-5 pb-0 pt-0 flex gap-2 flex-wrap">
             {pending.length > 0 && (
               <span className="text-xs font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 px-2.5 py-1 rounded-full">
@@ -358,30 +227,23 @@ export function BookingsPage() {
           </div>
         )}
 
-        {/* Requests list */}
-        {allRequests.length > 0 ? (
+        {allReqs.length > 0 ? (
           <div className="px-4 py-3 bg-[#f7fafc] border-t border-slate-100 mt-3 space-y-2">
             {pending.length > 0 && (
               <>
-                <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wider px-1 mb-1">
-                  Pendientes
-                </p>
+                <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wider px-1 mb-1">Pendientes</p>
                 {pending.map(r => <RequestRow key={r.id} reservation={r} route={route} />)}
               </>
             )}
             {confirmed.length > 0 && (
               <>
-                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider px-1 mb-1 mt-2">
-                  Confirmados
-                </p>
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider px-1 mb-1 mt-2">Confirmados</p>
                 {confirmed.map(r => <RequestRow key={r.id} reservation={r} route={route} />)}
               </>
             )}
           </div>
         ) : (
-          <p className="text-sm text-gray-400 px-5 pb-4 pt-2 border-t border-gray-100 mt-3">
-            Sin solicitudes aún.
-          </p>
+          <p className="text-sm text-gray-400 px-5 pb-4 pt-2 border-t border-gray-100 mt-3">Sin solicitudes aún.</p>
         )}
       </div>
     );
@@ -400,9 +262,7 @@ export function BookingsPage() {
           <div className="min-w-0">
             {route ? (
               <p className="font-medium text-gray-900 text-sm truncate">
-                {shortAddr(route.origin.address)}
-                <span className="text-gray-400 mx-1.5">→</span>
-                {shortAddr(route.destination.address)}
+                {shortAddr(route.origin.address)}<span className="text-gray-400 mx-1.5">→</span>{shortAddr(route.destination.address)}
               </p>
             ) : (
               <p className="font-medium text-gray-500 text-sm font-mono">{reservation.routeId.slice(0, 12)}…</p>
@@ -419,27 +279,14 @@ export function BookingsPage() {
           </Badge>
           {route && (
             <Button
-              variant="secondary"
-              size="sm"
+              variant="secondary" size="sm"
               isLoading={chatOpeningKey === `passenger-${reservation.id}`}
-              onClick={() =>
-                openOrCreateChat(
-                  route.id,
-                  route.driverId,
-                  reservation.passengerId,
-                  `passenger-${reservation.id}`,
-                )
-              }
+              onClick={() => openOrCreateChat(route.id, route.driverId, reservation.passengerId, `passenger-${reservation.id}`)}
             >
               Chat
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push(`/routes/${reservation.routeId}`)}
-            title="Ver ruta"
-          >
+          <Button variant="ghost" size="sm" onClick={() => router.push(`/routes/${reservation.routeId}`)} title="Ver ruta">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
@@ -459,16 +306,8 @@ export function BookingsPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-red-400 mb-4">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>Reintentar</Button>
-      </div>
-    );
-  }
-
   const totalPendingDriver = driverPending.filter(r => r.status === 'PENDING').length;
+  const isProcessing = acceptMutation.isPending || rejectMutation.isPending;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -483,15 +322,11 @@ export function BookingsPage() {
       </div>
 
       {chatError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {chatError}
-        </div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{chatError}</div>
       )}
 
-      {/* ── TWO COLUMN LAYOUT ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-
-        {/* ── CONDUCTOR ─────────────────────────────────────────────────────── */}
+        {/* Conductor */}
         <section className="rounded-2xl border border-white/15 bg-[#0b1232]/65 backdrop-blur-sm p-4 md:p-5">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex items-center gap-2">
@@ -506,12 +341,8 @@ export function BookingsPage() {
                 {totalPendingDriver} pendiente{totalPendingDriver !== 1 ? 's' : ''}
               </span>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push('/publish')}
-              className="ml-auto border-white/30 text-white hover:bg-white/10"
-            >
+            <Button variant="outline" size="sm" onClick={() => router.push('/publish')}
+              className="ml-auto border-white/30 text-white hover:bg-white/10">
               + Publicar ruta
             </Button>
           </div>
@@ -525,7 +356,7 @@ export function BookingsPage() {
                 </svg>
               </div>
               <h3 className="text-base font-semibold text-white mb-1">No has publicado rutas</h3>
-              <p className="text-gray-300 text-sm mb-4 max-w-xs">Publica tu primera ruta y empieza a recibir solicitudes de otros estudiantes.</p>
+              <p className="text-gray-300 text-sm mb-4 max-w-xs">Publica tu primera ruta y empieza a recibir solicitudes.</p>
               <Button variant="primary" size="sm" onClick={() => router.push('/publish')}>Publicar una ruta</Button>
             </div>
           ) : (
@@ -535,7 +366,7 @@ export function BookingsPage() {
           )}
         </section>
 
-        {/* ── PASAJERO ──────────────────────────────────────────────────────── */}
+        {/* Pasajero */}
         <section className="rounded-2xl border border-white/15 bg-[#0b1232]/65 backdrop-blur-sm p-4 md:p-5">
           <div className="flex items-center gap-2 mb-4">
             <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -545,7 +376,6 @@ export function BookingsPage() {
             <h2 className="text-base font-semibold text-white">Como Pasajero</h2>
           </div>
 
-          {/* Confirmed trips */}
           <div className="mb-6">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Viajes Confirmados · {myConfirmed.length}
@@ -553,12 +383,7 @@ export function BookingsPage() {
             {myConfirmed.length === 0 ? (
               <div className="text-center py-6 border border-dashed border-white/20 rounded-xl">
                 <p className="text-sm text-gray-400">No tienes viajes confirmados.</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => router.push('/search')}
-                  className="mt-2 text-primary"
-                >
+                <Button variant="ghost" size="sm" onClick={() => router.push('/search')} className="mt-2 text-primary">
                   Buscar rutas disponibles
                 </Button>
               </div>
@@ -569,30 +394,24 @@ export function BookingsPage() {
             )}
           </div>
 
-          {/* Pending requests */}
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Solicitudes Enviadas · {myPending.length}
             </p>
-          {myPending.length === 0 ? (
-            <p className="text-sm text-gray-400">No tienes solicitudes pendientes.</p>
-          ) : (
-            <div className="space-y-2">
-              {myPending.map(r => <PassengerCard key={r.id} reservation={r} />)}
-            </div>
-          )}
-        </div>
-      </section>
+            {myPending.length === 0 ? (
+              <p className="text-sm text-gray-400">No tienes solicitudes pendientes.</p>
+            ) : (
+              <div className="space-y-2">
+                {myPending.map(r => <PassengerCard key={r.id} reservation={r} />)}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
 
-      </div>{/* end grid */}
-
-      {/* ── Accept / Reject modal ─────────────────────────────────────────── */}
-      <Modal
-        isOpen={!!actionModal}
-        onClose={() => setActionModal(null)}
-        title={actionModal?.type === 'accept' ? 'Aceptar solicitud' : 'Rechazar solicitud'}
-        size="sm"
-      >
+      {/* Modals */}
+      <Modal isOpen={!!actionModal} onClose={() => setActionModal(null)}
+        title={actionModal?.type === 'accept' ? 'Aceptar solicitud' : 'Rechazar solicitud'} size="sm">
         <div className="space-y-4">
           <p className="text-gray-600">
             {actionModal?.type === 'accept'
@@ -601,18 +420,12 @@ export function BookingsPage() {
           </p>
           {actionModal && (
             <div className="p-3 bg-gray-50 rounded-lg text-sm space-y-1">
-              <p className="font-medium text-gray-800">
-                Fecha: {fmtDate(actionModal.reservation.travelDate)}
-              </p>
-              <p className="text-gray-500 font-mono text-xs">
-                Pasajero {actionModal.reservation.passengerId.slice(0, 8)}…
-              </p>
+              <p className="font-medium text-gray-800">Fecha: {fmtDate(actionModal.reservation.travelDate)}</p>
+              <p className="text-gray-500 font-mono text-xs">Pasajero {actionModal.reservation.passengerId.slice(0, 8)}…</p>
             </div>
           )}
           <div className="flex gap-3 pt-1">
-            <Button variant="ghost" className="flex-1" onClick={() => setActionModal(null)}>
-              Cancelar
-            </Button>
+            <Button variant="ghost" className="flex-1" onClick={() => setActionModal(null)}>Cancelar</Button>
             <Button
               variant={actionModal?.type === 'accept' ? 'primary' : 'danger'}
               className="flex-1"
@@ -625,29 +438,13 @@ export function BookingsPage() {
         </div>
       </Modal>
 
-      {/* ── Availability modal ───────────────────────────────────────────── */}
-      <Modal
-        isOpen={!!availabilityRouteId}
-        onClose={() => setAvailabilityRouteId(null)}
-        title="Gestionar Disponibilidad"
-        size="md"
-      >
-        {availabilityRouteId && (
-          <AvailabilityManager routeId={availabilityRouteId} />
-        )}
+      <Modal isOpen={!!availabilityRouteId} onClose={() => setAvailabilityRouteId(null)} title="Gestionar Disponibilidad" size="md">
+        {availabilityRouteId && <AvailabilityManager routeId={availabilityRouteId} />}
       </Modal>
 
-      {/* ── Delete route modal ────────────────────────────────────────────── */}
-      <Modal
-        isOpen={!!deleteModal}
-        onClose={() => setDeleteModal(null)}
-        title="Eliminar ruta"
-        size="sm"
-      >
+      <Modal isOpen={!!deleteModal} onClose={() => setDeleteModal(null)} title="Eliminar ruta" size="sm">
         <div className="space-y-4">
-          <p className="text-gray-600">
-            Esta acción eliminará la ruta y todas sus solicitudes asociadas. No se puede deshacer.
-          </p>
+          <p className="text-gray-600">Esta acción eliminará la ruta y todas sus solicitudes. No se puede deshacer.</p>
           {deleteModal && (
             <div className="p-3 bg-gray-50 rounded-lg text-sm">
               <p className="font-medium text-gray-800">
@@ -657,10 +454,8 @@ export function BookingsPage() {
             </div>
           )}
           <div className="flex gap-3 pt-1">
-            <Button variant="ghost" className="flex-1" onClick={() => setDeleteModal(null)}>
-              Cancelar
-            </Button>
-            <Button variant="danger" className="flex-1" onClick={handleDeleteRoute} isLoading={isDeleting}>
+            <Button variant="ghost" className="flex-1" onClick={() => setDeleteModal(null)}>Cancelar</Button>
+            <Button variant="danger" className="flex-1" onClick={handleDeleteRoute} isLoading={deleteMutation.isPending}>
               Eliminar
             </Button>
           </div>
