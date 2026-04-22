@@ -15,13 +15,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, isAuthenticated, router]);
 
-  if (isLoading) {
-    return <Loading fullScreen message="Cargando..." />;
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
+  // Redirect in progress — render nothing to avoid flash
+  if (!isLoading && !isAuthenticated) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary-dark via-secondary-medium to-secondary bg-fixed flex flex-col">
@@ -29,7 +24,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 p-4 lg:p-8 overflow-auto">
         <div className="max-w-7xl mx-auto">
-          {children}
+          {isLoading ? (
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <Loading message="Verificando sesión..." />
+            </div>
+          ) : children}
         </div>
       </main>
     </div>

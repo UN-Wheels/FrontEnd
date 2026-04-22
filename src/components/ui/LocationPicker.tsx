@@ -1,6 +1,6 @@
 'use client';
 import 'leaflet/dist/leaflet.css';
-import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Location } from '../../types';
@@ -65,7 +65,14 @@ function useDebounce<T>(value: T, ms: number): T {
   return debounced;
 }
 
-// ── PickerMap: aísla el MapContainer con su propio cleanup de _leaflet_id ─
+// Destroys the Leaflet map instance on unmount — same pattern as LeafletMap.tsx
+function MapDestroyer() {
+  const map = useMap();
+  useEffect(() => () => { map.remove(); }, [map]);
+  return null;
+}
+
+// ── PickerMap ─────────────────────────────────────────────────────────────
 interface PickerMapProps {
   initialCenter: [number, number];
   initialZoom: number;
@@ -75,40 +82,27 @@ interface PickerMapProps {
 }
 
 function PickerMap({ initialCenter, initialZoom, temp, geoCenter, onMapClick }: PickerMapProps) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const wrapper = wrapperRef.current;
-    return () => {
-      if (wrapper) {
-        const lc = wrapper.querySelector('.leaflet-container') as (HTMLDivElement & { _leaflet_id?: number }) | null;
-        if (lc) delete lc._leaflet_id;
-      }
-    };
-  }, []);
-
   return (
-    <div ref={wrapperRef} style={{ height: '100%', width: '100%' }}>
-      <MapContainer
-        center={initialCenter}
-        zoom={initialZoom}
-        style={{ height: '100%', width: '100%' }}
-        scrollWheelZoom
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        />
-        <ClickHandler onClick={onMapClick} />
-        <GeoFlyTo center={geoCenter} />
-        {temp && (
-          <>
-            <Marker position={[temp.lat, temp.lng]} icon={pickerIcon} />
-            <FlyTo lat={temp.lat} lng={temp.lng} />
-          </>
-        )}
-      </MapContainer>
-    </div>
+    <MapContainer
+      center={initialCenter}
+      zoom={initialZoom}
+      style={{ height: '100%', width: '100%' }}
+      scrollWheelZoom
+    >
+      <MapDestroyer />
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      />
+      <ClickHandler onClick={onMapClick} />
+      <GeoFlyTo center={geoCenter} />
+      {temp && (
+        <>
+          <Marker position={[temp.lat, temp.lng]} icon={pickerIcon} />
+          <FlyTo lat={temp.lat} lng={temp.lng} />
+        </>
+      )}
+    </MapContainer>
   );
 }
 

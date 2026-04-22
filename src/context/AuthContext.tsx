@@ -14,162 +14,151 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API_URL  = process.env.NEXT_PUBLIC_API_URL ?? '';
+const CACHE_KEY = 'uniwheels_user_cache';
 
-// Adapta la respuesta del backend (snake_case, campos distintos) al tipo User del frontend
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapApiUser(data: any): User {
   return {
-    id: String(data.id),
-    fullName: data.name ?? data.fullName ?? '',
-    email: data.email,
-    university: data.major ?? data.university ?? '',
+    id:             String(data.id),
+    fullName:       data.name        ?? data.fullName  ?? '',
+    email:          data.email,
+    university:     data.major       ?? data.university ?? '',
     profilePicture: data.profile_picture ?? data.profilePicture,
-    averageRating: data.rating ?? data.averageRating ?? 0,
-    totalTrips: data.total_trips ?? data.totalTrips ?? 0,
-    createdAt: data.created_at ?? data.createdAt ?? new Date().toISOString(),
+    averageRating:  data.rating      ?? data.averageRating ?? 0,
+    totalTrips:     data.total_trips ?? data.totalTrips    ?? 0,
+    createdAt:      data.created_at  ?? data.createdAt     ?? new Date().toISOString(),
   };
 }
 
+function readCache(): User | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch { return null; }
+}
+
+function writeCache(u: User | null) {
+  try {
+    if (u) sessionStorage.setItem(CACHE_KEY, JSON.stringify(u));
+    else    sessionStorage.removeItem(CACHE_KEY);
+  } catch { /* storage full / private mode */ }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  // Siempre arranca igual en servidor y cliente — evita hydration mismatch.
+  // La caché se lee en useEffect (solo cliente).
+  const [user,      setUser]      = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  //Check sesión al cargar la app
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/auth/me`, {
-          credentials: "include",
-        });
+    const cached = readCache();
 
+    const validate = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/me`, { credentials: 'include' });
         if (res.ok) {
-          const data = await res.json();
-          setUser(mapApiUser(data));
+          const mapped = mapApiUser(await res.json());
+          setUser(mapped);
+          writeCache(mapped);
         } else {
           setUser(null);
+          writeCache(null);
         }
       } catch {
-        setUser(null);
+        // Error de red: si había caché la mantenemos para no romper la sesión
+        if (!cached) setUser(null);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchUser();
+    if (cached) {
+      // Stale-while-revalidate: muestra caché instantáneamente, revalida en background
+      setUser(cached);
+      setIsLoading(false);
+      validate();
+    } else {
+      validate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  //LOGIN
   const login = async (credentials: LoginCredentials): Promise<void> => {
     setIsLoading(true);
-
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ username: credentials.email, password: credentials.password }),
       });
+      if (!res.ok) throw new Error('Credenciales inválidas');
 
-      if (!res.ok) {
-        throw new Error("Credenciales inválidas");
-      }
+      const userRes = await fetch(`${API_URL}/api/auth/me`, { credentials: 'include' });
+      if (!userRes.ok) throw new Error('No se pudo obtener el usuario');
 
-      //Obtener usuario después del login
-      const userRes = await fetch(`${API_URL}/api/auth/me`, {
-        credentials: "include",
-      });
-
-      if (!userRes.ok) {
-        throw new Error("No se pudo obtener el usuario");
-      }
-
-      const userData = await userRes.json();
-      setUser(mapApiUser(userData));
-
+      const mapped = mapApiUser(await userRes.json());
+      setUser(mapped);
+      writeCache(mapped);
     } finally {
       setIsLoading(false);
     }
   };
 
-// REGISTER
-const register = async (data: RegisterData): Promise<void> => {
-  setIsLoading(true);
-  try {
-    const res = await fetch(`${API_URL}/api/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: data.fullName,
-        email: data.email,
-        password: data.password,
-        phone_number: data.phone_number,
-        gender: data.gender,
-        major: data.major,
-        age: data.age,
-        role: data.role,
-      }),
-      credentials: "include", // IMPORTANTE para el login automático posterior
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.message || "Error al registrar usuario");
+  const register = async (data: RegisterData): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name:         data.fullName,
+          email:        data.email,
+          password:     data.password,
+          phone_number: data.phone_number,
+          gender:       data.gender,
+          major:        data.major,
+          age:          data.age,
+          role:         data.role,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Error al registrar usuario');
+      }
+      await login({ email: data.email, password: data.password, rememberMe: true });
+    } catch (error) {
+      console.error(error);
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
-
-    await login({
-      email: data.email,
-      password: data.password,
-      rememberMe: true,
-    });
-  } catch (error) {
-    console.error(error);
-    throw error;
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-  //LOGOUT
-  const logout = async (): Promise<void> => {
-    await fetch(`${API_URL}/api/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
-
-    setUser(null);
   };
 
-  //UPDATE USER LOCAL
+  const logout = async (): Promise<void> => {
+    writeCache(null);
+    setUser(null);
+    await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+  };
+
   const updateUser = (userData: Partial<User>) => {
-    if (user) {
-      setUser({ ...user, ...userData });
-    }
+    if (!user) return;
+    const updated = { ...user, ...userData };
+    setUser(updated);
+    writeCache(updated);
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isLoading,
-        login,
-        register,
-        logout,
-        updateUser,
-      }}
-    >
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
 }
