@@ -1,8 +1,12 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet';
-import L from 'leaflet';
+import dynamic from 'next/dynamic';
+
+const LeafletMap = dynamic(() => import('./LeafletMap'), {
+  ssr: false,
+  loading: () => <div style={{ height: '100%' }} className="bg-gray-100 animate-pulse rounded-xl" />,
+});
 import { Card, CardTitle, Button, Badge, Loading, Modal } from '../../components/ui';
 import { routesService, reservationsService, ApiRoute, RouteSlot } from '../../services/routesService';
 import { vehiclesService, Vehicle } from '../../services/vehiclesService';
@@ -16,23 +20,6 @@ export function RouteDetailPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
 
-  const originIcon = useMemo(() =>
-    typeof window !== 'undefined' ? L.divIcon({
-      className: '',
-      html: '<div style="width:18px;height:18px;border-radius:9999px;background:#45acab;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>',
-      iconSize: [18, 18],
-      iconAnchor: [9, 9],
-    }) : null
-  , []);
-
-  const destinationIcon = useMemo(() =>
-    typeof window !== 'undefined' ? L.divIcon({
-      className: '',
-      html: '<div style="width:18px;height:18px;border-radius:9999px;background:#1f3f69;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>',
-      iconSize: [18, 18],
-      iconAnchor: [9, 9],
-    }) : null
-  , []);
   const { user } = useAuth();
 
   const [route, setRoute]               = useState<ApiRoute | null>(null);
@@ -316,42 +303,12 @@ export function RouteDetailPage() {
           <Card>
             <CardTitle>Recorrido</CardTitle>
             <div className="mt-4 rounded-xl overflow-hidden" style={{ height: 300 }}>
-              <MapContainer
+              <LeafletMap
                 center={mapCenter}
-                zoom={13}
-                style={{ height: '100%', width: '100%' }}
-                scrollWheelZoom={false}
-              >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                />
-                {routeCoords.length > 0 && (
-                  <Polyline
-                    positions={routeCoords}
-                    pathOptions={{ color: '#45acab', weight: 4, opacity: 0.85 }}
-                  />
-                )}
-                {originIcon && (
-                  <Marker position={[route.origin.lat, route.origin.lng]} icon={originIcon}>
-                    <Popup>
-                      <strong>Origen</strong>
-                      <br />
-                      {route.origin.address}
-                    </Popup>
-                  </Marker>
-                )}
-                {destinationIcon && <Marker
-                  position={[route.destination.lat, route.destination.lng]}
-                  icon={destinationIcon}
-                >
-                  <Popup>
-                    <strong>Destino</strong>
-                    <br />
-                    {route.destination.address}
-                  </Popup>
-                </Marker>}
-              </MapContainer>
+                origin={route.origin}
+                destination={route.destination}
+                routeCoords={routeCoords}
+              />
             </div>
           </Card>
 
