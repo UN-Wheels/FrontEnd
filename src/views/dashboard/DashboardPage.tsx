@@ -1,94 +1,53 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardTitle, Button, Badge } from '../../components/ui';
-import { routesService, reservationsService, ApiRoute, ApiReservation } from '../../services/routesService';
+import {
+  useAvailableRoutes,
+  usePassengerConfirmedTrips,
+  useRoutesByIds,
+} from '../../hooks/queries';
+import { fmtTime, fmtDate, shortAddr } from '../../lib/format';
+import { ApiReservation } from '../../services/routesService';
+
+const TRIP_STATUS_LABEL: Record<ApiReservation['status'], string> = {
+  PENDING:   'Pendiente',
+  CONFIRMED: 'Confirmado',
+  REJECTED:  'Rechazado',
+  CANCELLED: 'Cancelado',
+};
+
+const TRIP_STATUS_VARIANT: Record<ApiReservation['status'], 'warning' | 'success' | 'danger' | 'default'> = {
+  PENDING:   'warning',
+  CONFIRMED: 'success',
+  REJECTED:  'danger',
+  CANCELLED: 'default',
+};
+
 
 export function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const [recentRoutes, setRecentRoutes] = useState<ApiRoute[]>([]);
-  const [upcomingTrips, setUpcomingTrips] = useState<ApiReservation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [upcomingRoutesMap, setUpcomingRoutesMap] = useState<Map<string, ApiRoute>>(new Map());
+  const { data: allRoutes = [], isLoading: loadingRoutes } = useAvailableRoutes();
+  const { data: allTrips = [],  isLoading: loadingTrips  } = usePassengerConfirmedTrips();
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [routes, confirmed] = await Promise.all([
-          routesService.getAvailableRoutes(),
-          reservationsService.getMyConfirmedTrips(),
-        ]);
+  const recentRoutes  = useMemo(() => allRoutes.slice(0, 3), [allRoutes]);
+  const upcomingTrips = useMemo(() => allTrips.slice(0, 3),  [allTrips]);
 
-        const upcoming = confirmed.slice(0, 3);
-        setRecentRoutes(routes.slice(0, 3));
-        setUpcomingTrips(upcoming);
+  const uniqueRouteIds = useMemo(
+    () => [...new Set(upcomingTrips.map(t => t.routeId))],
+    [upcomingTrips],
+  );
 
-        const uniqueRouteIds = [...new Set(upcoming.map((trip) => trip.routeId))];
-        if (uniqueRouteIds.length > 0) {
-          const fetched = await Promise.all(
-            uniqueRouteIds.map((id) =>
-              routesService
-                .getRouteById(id)
-                .then((route) => [id, route] as [string, ApiRoute])
-                .catch(() => null),
-            ),
-          );
+  // React Query resuelve cada ruta en paralelo y usa la misma caché que RouteDetailPage
+  const { map: upcomingRoutesMap } = useRoutesByIds(uniqueRouteIds);
 
-          const map = new Map<string, ApiRoute>();
-          fetched.forEach((entry) => {
-            if (entry) map.set(entry[0], entry[1]);
-          });
-          setUpcomingRoutesMap(map);
-        } else {
-          setUpcomingRoutesMap(new Map());
-        }
-      } catch (err) {
-        console.error('Error al cargar dashboard:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
-  }, []);
-
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('es-CO', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
-
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('es-CO', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-const shortAddress = (value: string) => value.split(',')[0].trim();
-
-const TRIP_STATUS_LABEL: Record<ApiReservation['status'], string> = {
-  PENDING: 'Pendiente',
-  CONFIRMED: 'Confirmado',
-  REJECTED: 'Rechazado',
-  CANCELLED: 'Cancelado',
-};
-
-const TRIP_STATUS_VARIANT: Record<
-  ApiReservation['status'],
-  'warning' | 'success' | 'danger' | 'default'
-> = {
-  PENDING: 'warning',
-  CONFIRMED: 'success',
-  REJECTED: 'danger',
-  CANCELLED: 'default',
-};
+  const isLoading = loadingRoutes || loadingTrips;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">
@@ -97,12 +56,8 @@ const TRIP_STATUS_VARIANT: Record<
           <p className="text-gray-200 mt-1">Esto es lo que está pasando con tus viajes</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => router.push('/search')}>
-            Buscar Viaje
-          </Button>
-          <Button variant="primary" onClick={() => router.push('/publish')}>
-            Publicar Ruta
-          </Button>
+          <Button variant="outline" onClick={() => router.push('/search')}>Buscar Viaje</Button>
+          <Button variant="primary" onClick={() => router.push('/publish')}>Publicar Ruta</Button>
         </div>
       </div>
 
@@ -111,9 +66,7 @@ const TRIP_STATUS_VARIANT: Record<
         <Card>
           <div className="flex items-center justify-between mb-4">
             <CardTitle>Próximos Viajes</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => router.push('/bookings')}>
-              Ver todos
-            </Button>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/bookings')}>Ver todos</Button>
           </div>
 
           {isLoading ? (
@@ -129,7 +82,6 @@ const TRIP_STATUS_VARIANT: Record<
             <div className="space-y-3">
               {upcomingTrips.map((trip) => {
                 const route = upcomingRoutesMap.get(trip.routeId);
-
                 return (
                   <div
                     key={trip.id}
@@ -141,43 +93,36 @@ const TRIP_STATUS_VARIANT: Record<
                       <div className="w-px h-4 bg-gray-300" />
                       <div className="w-2.5 h-2.5 rounded-full bg-secondary" />
                     </div>
-
                     <div className="flex-1 min-w-0">
                       {route ? (
                         <p className="font-semibold text-gray-900 truncate text-sm">
-                          {shortAddress(route.origin.address)}
+                          {shortAddr(route.origin.address)}
                           <span className="mx-1.5 text-gray-400">→</span>
-                          {shortAddress(route.destination.address)}
+                          {shortAddr(route.destination.address)}
                         </p>
                       ) : (
                         <p className="font-medium text-gray-700 truncate text-sm font-mono">
                           Ruta {trip.routeId.slice(0, 12)}…
                         </p>
                       )}
-
                       <p className="text-xs text-gray-500 mt-1">
-                        {formatDate(trip.travelDate)}
+                        {fmtDate(trip.travelDate)}
                         {route && (
                           <>
                             <span className="mx-1">·</span>
-                            {formatTime(route.departureTime)}
+                            {fmtTime(route.departureTime)}
                             <span className="mx-1">·</span>
                             ${route.price.toLocaleString('es-CO')} por cupo
                           </>
                         )}
                       </p>
                     </div>
-
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <Badge variant={TRIP_STATUS_VARIANT[trip.status]}>
                         {TRIP_STATUS_LABEL[trip.status]}
                       </Badge>
-                      <svg
-                        className="w-4 h-4 text-gray-400 group-hover:text-primary transition-colors"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary transition-colors"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </div>
@@ -192,12 +137,10 @@ const TRIP_STATUS_VARIANT: Record<
         <Card>
           <div className="flex items-center justify-between mb-4">
             <CardTitle>Rutas Disponibles</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => router.push('/search')}>
-              Ver todas
-            </Button>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/search')}>Ver todas</Button>
           </div>
 
-          {isLoading ? (
+          {loadingRoutes ? (
             <div className="py-8 text-center text-gray-400 text-sm">Cargando...</div>
           ) : recentRoutes.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
@@ -217,8 +160,7 @@ const TRIP_STATUS_VARIANT: Record<
                     </p>
                     <p className="text-sm text-gray-500">
                       {new Date(route.departureTime).toLocaleTimeString('es-CO', {
-                        hour: '2-digit',
-                        minute: '2-digit',
+                        hour: '2-digit', minute: '2-digit',
                       })}
                     </p>
                   </div>

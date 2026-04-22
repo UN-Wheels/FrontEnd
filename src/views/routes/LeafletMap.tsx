@@ -1,8 +1,17 @@
 'use client';
 import 'leaflet/dist/leaflet.css';
-import { useRef, useLayoutEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet';
+import { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+
+// Destroys the Leaflet map instance when the containing component unmounts.
+// This is the only reliable way to prevent "Map container is being reused"
+// in React StrictMode / Next.js hydration cycles.
+function MapDestroyer() {
+  const map = useMap();
+  useEffect(() => () => { map.remove(); }, [map]);
+  return null;
+}
 
 const originIcon = L.divIcon({
   className: '',
@@ -26,47 +35,34 @@ interface LeafletMapProps {
 }
 
 export default function LeafletMap({ center, origin, destination, routeCoords }: LeafletMapProps) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const wrapper = wrapperRef.current;
-    return () => {
-      if (wrapper) {
-        const lc = wrapper.querySelector('.leaflet-container') as (HTMLDivElement & { _leaflet_id?: number }) | null;
-        if (lc) delete lc._leaflet_id;
-      }
-    };
-  }, []);
-
   return (
-    <div ref={wrapperRef} style={{ height: '100%', width: '100%' }}>
-      <MapContainer
-        center={center}
-        zoom={13}
-        style={{ height: '100%', width: '100%' }}
-        scrollWheelZoom={false}
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    <MapContainer
+      center={center}
+      zoom={13}
+      style={{ height: '100%', width: '100%' }}
+      scrollWheelZoom={false}
+    >
+      <MapDestroyer />
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      />
+      {routeCoords.length > 0 && (
+        <Polyline
+          positions={routeCoords}
+          pathOptions={{ color: '#45acab', weight: 4, opacity: 0.85 }}
         />
-        {routeCoords.length > 0 && (
-          <Polyline
-            positions={routeCoords}
-            pathOptions={{ color: '#45acab', weight: 4, opacity: 0.85 }}
-          />
-        )}
-        <Marker position={[origin.lat, origin.lng]} icon={originIcon}>
-          <Popup>
-            <strong>Origen</strong><br />{origin.address}
-          </Popup>
-        </Marker>
-        <Marker position={[destination.lat, destination.lng]} icon={destinationIcon}>
-          <Popup>
-            <strong>Destino</strong><br />{destination.address}
-          </Popup>
-        </Marker>
-      </MapContainer>
-    </div>
+      )}
+      <Marker position={[origin.lat, origin.lng]} icon={originIcon}>
+        <Popup>
+          <strong>Origen</strong><br />{origin.address}
+        </Popup>
+      </Marker>
+      <Marker position={[destination.lat, destination.lng]} icon={destinationIcon}>
+        <Popup>
+          <strong>Destino</strong><br />{destination.address}
+        </Popup>
+      </Marker>
+    </MapContainer>
   );
 }

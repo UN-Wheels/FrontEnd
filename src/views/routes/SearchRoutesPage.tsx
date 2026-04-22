@@ -1,42 +1,29 @@
 'use client';
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, Button, Loading, EmptyState } from '../../components/ui';
-import { routesService, ApiRoute } from '../../services/routesService';
+import { useAvailableRoutes } from '../../hooks/queries';
+import { fmtTime, fmtDate } from '../../lib/format';
 
 export function SearchRoutesPage() {
   const router = useRouter();
-  const [routes, setRoutes] = useState<ApiRoute[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError]         = useState('');
+  const { data: routes = [], isLoading, isError, refetch } = useAvailableRoutes();
 
-  // Fetch once on mount
-  useEffect(() => {
-    const fetchRoutes = async () => {
-      setIsLoading(true);
-      setError('');
-      try {
-        const data = await routesService.getAvailableRoutes();
-        setRoutes(data);
-      } catch (err) {
-        console.error('Error al obtener rutas:', err);
-        setError('No se pudieron cargar las rutas. Intenta de nuevo.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchRoutes();
-  }, []);
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loading size="lg" message="Buscando rutas disponibles..." />
+      </div>
+    );
+  }
 
-  const formatTime = (d: string) =>
-    new Date(d).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString('es-CO', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
+  if (isError) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-400 mb-4">No se pudieron cargar las rutas. Intenta de nuevo.</p>
+        <Button variant="outline" onClick={() => refetch()}>Reintentar</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -45,19 +32,7 @@ export function SearchRoutesPage() {
         <p className="text-gray-200 mt-1">Encuentra el viaje perfecto hacia tu destino</p>
       </div>
 
-      {/* ── Results ── */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loading size="lg" message="Buscando rutas disponibles..." />
-        </div>
-      ) : error ? (
-        <div className="text-center py-12">
-          <p className="text-red-400 mb-4">{error}</p>
-          <Button variant="outline" onClick={() => window.location.reload()}>
-            Reintentar
-          </Button>
-        </div>
-      ) : routes.length === 0 ? (
+      {routes.length === 0 ? (
         <EmptyState
           icon={
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -85,7 +60,6 @@ export function SearchRoutesPage() {
                 onClick={() => router.push(`/routes/${route.id}`)}
                 className="cursor-pointer"
               >
-                {/* Route */}
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
                     <div className="flex flex-col items-center pt-1">
@@ -95,17 +69,11 @@ export function SearchRoutesPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Origen</p>
-                      <p
-                        className="font-medium text-gray-900 text-sm truncate"
-                        title={route.origin.address}
-                      >
+                      <p className="font-medium text-gray-900 text-sm truncate" title={route.origin.address}>
                         {route.origin.address.split(',')[0].trim()}
                       </p>
                       <p className="text-xs text-gray-500 uppercase tracking-wide mt-3">Destino</p>
-                      <p
-                        className="font-medium text-gray-900 text-sm truncate"
-                        title={route.destination.address}
-                      >
+                      <p className="font-medium text-gray-900 text-sm truncate" title={route.destination.address}>
                         {route.destination.address.split(',')[0].trim()}
                       </p>
                     </div>
@@ -121,25 +89,22 @@ export function SearchRoutesPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                             d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span className="text-sm">{formatTime(route.departureTime)}</span>
+                        <span className="text-sm">{fmtTime(route.departureTime)}</span>
                       </div>
                       <div className="flex items-center gap-1 text-gray-600">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <span className="text-sm capitalize">{formatDate(route.departureTime)}</span>
+                        <span className="text-sm capitalize">{fmtDate(route.departureTime)}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-primary">
-                        ${route.price.toLocaleString()}
-                      </p>
+                      <p className="text-lg font-bold text-primary">${route.price.toLocaleString()}</p>
                       <p className="text-xs text-gray-500">por cupo</p>
                     </div>
                   </div>
 
-                  {/* Conductor */}
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs flex-shrink-0">
                       {route.driver?.name

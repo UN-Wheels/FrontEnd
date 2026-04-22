@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loading, EmptyState } from '../../components/ui';
+import { fmtTime } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import {
   chatService,
@@ -56,13 +57,6 @@ const CheckIcon = ({ double = false }: { double?: boolean }) => (
 );
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-CO', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -215,9 +209,8 @@ export function ChatPage() {
       // Marcar como leído si es del otro
       if (data.senderId !== userId && prevConvRef.current) {
         socketService.markAsRead(prevConvRef.current);
+        loadConversations();
       }
-
-      loadConversations();
     });
     return cleanup;
   }, [userId, loadConversations]);
@@ -518,7 +511,7 @@ export function ChatPage() {
             const isSelected = conv.conversationId === selectedId;
             const name = userNames.get(conv.otherUserId) ?? conv.otherUserId.split('@')[0];
             const sub = conv.otherUserId;
-            const time = conv.lastMessageAt ? formatTime(conv.lastMessageAt) : '';
+            const time = conv.lastMessageAt ? fmtTime(conv.lastMessageAt) : '';
             const avatarLetter = name[0]?.toUpperCase() ?? '?';
 
             return (
@@ -675,7 +668,7 @@ export function ChatPage() {
                               }`}
                             >
                               <span className="text-xs">
-                                {formatTime(msg.timestamp)}
+                                {fmtTime(msg.timestamp)}
                               </span>
                               {isOwn && (
                                 <span title={msg.status === 'READ' ? 'Leído' : 'Entregado'}>

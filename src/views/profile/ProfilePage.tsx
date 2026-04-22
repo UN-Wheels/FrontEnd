@@ -1,38 +1,31 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardTitle, Button, Input, Avatar, Badge, Modal } from '../../components/ui';
-import { reservationsService, ApiReservation } from '../../services/routesService';
-import { vehiclesService, Vehicle, CreateVehiclePayload } from '../../services/vehiclesService';
 import { VehicleForm } from '../../components/vehicles';
+import { CreateVehiclePayload } from '../../services/vehiclesService';
+import {
+  usePassengerHistory,
+  useMyVehicles,
+  useCreateVehicle,
+  useDeleteVehicle,
+} from '../../hooks/queries';
+import { fmtDateFull } from '../../lib/format';
 
 export function ProfilePage() {
   const { user, updateUser } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState({
+  const [isEditing,     setIsEditing]     = useState(false);
+  const [editData,      setEditData]      = useState({
     fullName: user?.fullName || '',
     profilePicture: user?.profilePicture || '',
   });
-  const [tripHistory, setTripHistory] = useState<ApiReservation[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
-
-  // Vehicles state
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [vehiclesLoading, setVehiclesLoading] = useState(true);
   const [showVehicleForm, setShowVehicleForm] = useState(false);
-  const [isSavingVehicle, setIsSavingVehicle] = useState(false);
 
-  useEffect(() => {
-    reservationsService.getTripHistory()
-      .then(setTripHistory)
-      .catch(err => console.error('Error al cargar historial:', err))
-      .finally(() => setHistoryLoading(false));
+  const { data: tripHistory = [], isLoading: historyLoading } = usePassengerHistory();
+  const { data: vehicles    = [], isLoading: vehiclesLoading } = useMyVehicles();
 
-    vehiclesService.getMyVehicles()
-      .then(setVehicles)
-      .catch(err => console.error('Error al cargar vehículos:', err))
-      .finally(() => setVehiclesLoading(false));
-  }, []);
+  const createVehicleMutation = useCreateVehicle();
+  const deleteVehicleMutation = useDeleteVehicle();
 
   const handleSave = () => {
     updateUser(editData);
@@ -40,38 +33,24 @@ export function ProfilePage() {
   };
 
   const handleAddVehicle = async (payload: CreateVehiclePayload) => {
-    setIsSavingVehicle(true);
     try {
-      const newVehicle = await vehiclesService.createVehicle(payload);
-      setVehicles(v => [...v, newVehicle]);
+      await createVehicleMutation.mutateAsync(payload);
       setShowVehicleForm(false);
     } catch (err) {
       console.error('Error al crear vehículo:', err);
-    } finally {
-      setIsSavingVehicle(false);
     }
   };
 
   const handleDeleteVehicle = async (id: number) => {
     if (!window.confirm('¿Eliminar este vehículo?')) return;
     try {
-      await vehiclesService.deleteVehicle(id);
-      setVehicles(v => v.filter(vh => vh.id !== id));
+      await deleteVehicleMutation.mutateAsync(id);
     } catch (err) {
       console.error('Error al eliminar vehículo:', err);
     }
   };
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('es-CO', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-
-  const statusVariant: Record<string, 'success' | 'default'> = {
-    CONFIRMED: 'success',
-  };
+  const statusVariant: Record<string, 'success' | 'default'> = { CONFIRMED: 'success' };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -82,16 +61,10 @@ export function ProfilePage() {
         <Card className="lg:col-span-1">
           <div className="text-center">
             <div className="relative inline-block">
-              <Avatar
-                src={user?.profilePicture}
-                alt={user?.fullName || 'Usuario'}
-                size="xl"
-                className="w-24 h-24"
-              />
+              <Avatar src={user?.profilePicture} alt={user?.fullName || 'Usuario'} size="xl" className="w-24 h-24" />
               <button
                 className="absolute bottom-0 right-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-dark transition-colors"
                 onClick={() => setIsEditing(true)}
-                title="Editar foto"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -99,10 +72,8 @@ export function ProfilePage() {
                 </svg>
               </button>
             </div>
-
             <h2 className="text-xl font-bold text-gray-900 mt-4">{user?.fullName}</h2>
             <p className="text-gray-500">{user?.email}</p>
-
             <div className="mt-6 pt-6 border-t border-gray-100">
               <Button variant="outline" className="w-full" onClick={() => setIsEditing(true)}>
                 Editar Perfil
@@ -114,7 +85,6 @@ export function ProfilePage() {
         {/* Trip history */}
         <Card className="lg:col-span-2">
           <CardTitle>Historial de Viajes</CardTitle>
-
           <div className="mt-4 space-y-4">
             {historyLoading ? (
               <div className="text-center py-8 text-gray-400 text-sm">Cargando historial...</div>
@@ -128,22 +98,13 @@ export function ProfilePage() {
               </div>
             ) : (
               tripHistory.map((trip) => (
-                <div
-                  key={trip.id}
-                  className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
+                <div key={trip.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-gray-900 text-sm font-mono truncate">
-                        Ruta: {trip.routeId}
-                      </p>
-                      <Badge variant={statusVariant[trip.status] ?? 'default'} size="sm">
-                        {trip.status}
-                      </Badge>
+                      <p className="font-medium text-gray-900 text-sm font-mono truncate">Ruta: {trip.routeId}</p>
+                      <Badge variant={statusVariant[trip.status] ?? 'default'} size="sm">{trip.status}</Badge>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      {formatDate(trip.travelDate)}
-                    </p>
+                    <p className="text-sm text-gray-500 mt-0.5">{fmtDateFull(trip.travelDate)}</p>
                   </div>
                 </div>
               ))
@@ -152,14 +113,12 @@ export function ProfilePage() {
         </Card>
       </div>
 
-      {/* Vehicles section */}
+      {/* Vehicles */}
       <Card>
         <div className="flex items-center justify-between mb-4">
           <CardTitle>Mis Vehículos</CardTitle>
           {!showVehicleForm && (
-            <Button variant="outline" size="sm" onClick={() => setShowVehicleForm(true)}>
-              + Agregar
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowVehicleForm(true)}>+ Agregar</Button>
           )}
         </div>
 
@@ -196,7 +155,6 @@ export function ProfilePage() {
                 <button
                   onClick={() => handleDeleteVehicle(v.id)}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
-                  title="Eliminar vehículo"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -212,7 +170,7 @@ export function ProfilePage() {
                 <VehicleForm
                   onSubmit={handleAddVehicle}
                   onCancel={() => setShowVehicleForm(false)}
-                  isLoading={isSavingVehicle}
+                  isLoading={createVehicleMutation.isPending}
                 />
               </div>
             )}
@@ -231,28 +189,21 @@ export function ProfilePage() {
               className="w-24 h-24 mx-auto"
             />
           </div>
-
           <Input
             label="Nombre Completo"
             value={editData.fullName}
             onChange={(e) => setEditData({ ...editData, fullName: e.target.value })}
             placeholder="Ingresa tu nombre completo"
           />
-          
           <Input
             label="Correo Electrónico"
             value={user?.email || ''}
             disabled
             helperText="El correo no se puede modificar"
           />
-
           <div className="flex gap-3 pt-4">
-            <Button variant="ghost" className="flex-1" onClick={() => setIsEditing(false)}>
-              Cancelar
-            </Button>
-            <Button variant="primary" className="flex-1" onClick={handleSave}>
-              Guardar Cambios
-            </Button>
+            <Button variant="ghost" className="flex-1" onClick={() => setIsEditing(false)}>Cancelar</Button>
+            <Button variant="primary" className="flex-1" onClick={handleSave}>Guardar Cambios</Button>
           </div>
         </div>
       </Modal>
