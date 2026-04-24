@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../ui/Avatar';
 import logotype from '../../assets/logotype.png';
+import { useNotifications } from '../../hooks/useNotifications';
 
 // Definimos los items de navegación aquí para que la Topbar sea autónoma
 const navItems = [
@@ -58,6 +59,24 @@ export function Topbar() {
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const { unreadCount, notifications, fetchNotifications, markRead, markAllRead } = useNotifications();
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    fetchNotifications();
+  }, [showNotifications, fetchNotifications]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const handleLogout = () => {
     setShowUserMenu(false);
@@ -98,6 +117,69 @@ export function Topbar() {
 
       {/* Lado Derecho: Notificaciones y Usuario */}
       <div className="flex items-center gap-3">
+        {/* Notification Bell */}
+        <div ref={notifRef} className="relative">
+          <button
+            type="button"
+            className="relative inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-100 hover:bg-white/10 transition-colors"
+            aria-label="Notificaciones"
+            onClick={() => {
+              setShowNotifications((prev) => !prev);
+              setShowUserMenu(false);
+              setShowMobileNav(false);
+            }}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 animate-fade-in z-50 max-h-96 flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <span className="font-semibold text-gray-900">Notificaciones</span>
+                {unreadCount > 0 && (
+                  <button
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => markAllRead()}
+                  >
+                    Marcar todo leído
+                  </button>
+                )}
+              </div>
+              <div className="overflow-y-auto flex-1">
+                {notifications.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No tienes notificaciones</p>
+                ) : (
+                  notifications.map((n) => (
+                    <button
+                      key={n._id}
+                      className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}
+                      onClick={() => { if (!n.read) markRead(n._id); }}
+                    >
+                      <div className="flex items-start gap-2">
+                        {!n.read && <span className="mt-1.5 flex-shrink-0 w-2 h-2 rounded-full bg-blue-500" />}
+                        <div className={!n.read ? '' : 'pl-4'}>
+                          <p className="text-sm font-medium text-gray-900">{n.title}</p>
+                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(n.createdAt).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         <button
           type="button"
           className="lg:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-100 hover:bg-white/10 transition-colors"
