@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
         { source: '/api/auth/:path*', destination: `${gatewayUrl}/api/auth/:path*` },
         { source: '/api/routes/:path*', destination: `${gatewayUrl}/api/routes/:path*` },
         { source: '/api/chat/:path*', destination: `${gatewayUrl}/api/chat/:path*` },
+        { source: '/api/notifications/:path*', destination: `${gatewayUrl}/api/notifications/:path*` },
       ],
     };
   },
