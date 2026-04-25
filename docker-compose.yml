@@ -17,6 +17,7 @@ services:
       - JWT_SECRET=super_secret_key_change_me
       - AUTH_SERVICE_URL=http://auth-service:8000
       - CHAT_SERVICE_URL=http://chat-service:3001
+      - NOTIFICATIONS_SERVICE_URL=http://notifications-service:3002
       - ROUTES_SERVICE_URL=http://routes-service:4000
       - FRONTEND_URL=http://localhost:5173
       - COOKIE_MAX_AGE=1800
@@ -24,6 +25,7 @@ services:
       - auth-service
       - routes-service
       - chat-service
+      - notifications-service
 
   chat-service:
     build: ../chat-service
@@ -37,6 +39,20 @@ services:
       - CORS_ORIGIN=http://localhost:5173
     depends_on:
       - mongo
+
+  notifications-service:
+    build: ../notifications-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - MONGODB_URI=mongodb://mongo:27017/uniwheels_notifications
+      - JWT_ACCESS_SECRET=super_secret_key_change_me
+      - RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672
+      - CORS_ORIGIN=http://localhost:5173
+    depends_on:
+      - mongo
+      - rabbitmq
 
   routes-service:
     build: ../routes-reservations-service
@@ -55,6 +71,15 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/var/lib/mongodb/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
 
   auth-service:
     build: ../loggueo_service
