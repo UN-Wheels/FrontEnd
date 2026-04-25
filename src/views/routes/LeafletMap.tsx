@@ -1,17 +1,7 @@
 'use client';
 import 'leaflet/dist/leaflet.css';
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
+import { useEffect, useRef } from 'react';
 import L from 'leaflet';
-
-// Destroys the Leaflet map instance when the containing component unmounts.
-// This is the only reliable way to prevent "Map container is being reused"
-// in React StrictMode / Next.js hydration cycles.
-function MapDestroyer() {
-  const map = useMap();
-  useEffect(() => () => { map.remove(); }, [map]);
-  return null;
-}
 
 const originIcon = L.divIcon({
   className: '',
@@ -35,34 +25,59 @@ interface LeafletMapProps {
 }
 
 export default function LeafletMap({ center, origin, destination, routeCoords }: LeafletMapProps) {
-  return (
-    <MapContainer
-      center={center}
-      zoom={13}
-      style={{ height: '100%', width: '100%' }}
-      scrollWheelZoom={false}
-    >
-      <MapDestroyer />
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      />
-      {routeCoords.length > 0 && (
-        <Polyline
-          positions={routeCoords}
-          pathOptions={{ color: '#45acab', weight: 4, opacity: 0.85 }}
-        />
-      )}
-      <Marker position={[origin.lat, origin.lng]} icon={originIcon}>
-        <Popup>
-          <strong>Origen</strong><br />{origin.address}
-        </Popup>
-      </Marker>
-      <Marker position={[destination.lat, destination.lng]} icon={destinationIcon}>
-        <Popup>
-          <strong>Destino</strong><br />{destination.address}
-        </Popup>
-      </Marker>
-    </MapContainer>
-  );
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef       = useRef<L.Map | null>(null);
+  const polylineRef  = useRef<L.Polyline | null>(null);
+
+  // Initialize map imperatively. Clears _leaflet_id before L.map() so that
+  // React 18.3 StrictMode's callback-ref double-invoke doesn't throw
+  // "Map container is being reused by another instance".
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    (el as unknown as Record<string, unknown>)._leaflet_id = undefined;
+
+    const map = L.map(el, { scrollWheelZoom: true }).setView(center, 13);
+    mapRef.current = map;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+
+    L.marker([origin.lat, origin.lng], { icon: originIcon })
+      .bindPopup(`<strong>Origen</strong><br/>${origin.address}`)
+      .addTo(map);
+
+    L.marker([destination.lat, destination.lng], { icon: destinationIcon })
+      .bindPopup(`<strong>Destino</strong><br/>${destination.address}`)
+      .addTo(map);
+
+    return () => {
+      map.remove();
+      mapRef.current     = null;
+      polylineRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Redraw polyline whenever routeCoords change (arrives async from OSRM).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    polylineRef.current?.remove();
+    polylineRef.current = null;
+
+    if (routeCoords.length > 0) {
+      polylineRef.current = L.polyline(routeCoords, {
+        color: '#45acab',
+        weight: 4,
+        opacity: 0.85,
+      }).addTo(map);
+      map.fitBounds(polylineRef.current.getBounds(), { padding: [32, 32] });
+    }
+  }, [routeCoords]);
+
+  return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />;
 }
