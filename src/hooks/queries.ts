@@ -246,8 +246,8 @@ async function fetchOsrmRoute(
   const coords = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`;
   const query  = '?overview=full&geometries=geojson';
   const servers = [
-    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}${query}`,
     `https://router.project-osrm.org/route/v1/driving/${coords}${query}`,
+    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}${query}`,
   ];
 
   for (const url of servers) {
@@ -262,7 +262,7 @@ async function fetchOsrmRoute(
     } catch { /* try next */ }
   }
 
-  return [[origin.lat, origin.lng], [destination.lat, destination.lng]];
+  return [];
 }
 
 export function useOsrmRoute(
