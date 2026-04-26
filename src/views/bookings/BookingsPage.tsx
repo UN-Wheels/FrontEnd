@@ -1,9 +1,11 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Badge, Loading, Modal } from '../../components/ui';
 import { ApiReservation, ApiRoute } from '../../services/routesService';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationsContext';
 import { AvailabilityManager } from '../../components/availability/AvailabilityManager';
 import { shortAddr, fmtDate, fmtTime } from '../../lib/format';
 import { chatService } from '../../services/chatService';
@@ -17,6 +19,7 @@ import {
   useAcceptReservation,
   useRejectReservation,
   useDeleteRoute,
+  queryKeys,
 } from '../../hooks/queries';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -39,6 +42,30 @@ const ROUTE_STATUS_VARIANT: Record<string, 'success' | 'warning' | 'default' | '
 export function BookingsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const qc = useQueryClient();
+  const { lastNotification } = useNotifications();
+
+  // ── Auto-refresh al recibir notificaciones de reservas en tiempo real ─────
+  useEffect(() => {
+    if (!lastNotification) return;
+    const { type } = lastNotification;
+    if (type === 'RESERVATION_REQUESTED') {
+      // El conductor tiene una nueva solicitud pendiente
+      qc.invalidateQueries({ queryKey: queryKeys.reservations.driverPending() });
+    } else if (type === 'RESERVATION_ACCEPTED') {
+      // El pasajero pasó a confirmado
+      qc.invalidateQueries({ queryKey: queryKeys.reservations.passengerPending() });
+      qc.invalidateQueries({ queryKey: queryKeys.reservations.passengerConfirmed() });
+    } else if (type === 'RESERVATION_REJECTED') {
+      // La solicitud del pasajero fue rechazada
+      qc.invalidateQueries({ queryKey: queryKeys.reservations.passengerPending() });
+    } else if (type === 'ROUTE_DELETED') {
+      // La ruta fue cancelada — refrescar todo
+      qc.invalidateQueries({ queryKey: queryKeys.reservations.passengerPending() });
+      qc.invalidateQueries({ queryKey: queryKeys.reservations.passengerConfirmed() });
+      qc.invalidateQueries({ queryKey: queryKeys.routes.my() });
+    }
+  }, [lastNotification, qc]);
 
   // ── Queries ────────────────────────────────────────────────────────────────
   const { data: myRoutes      = [], isLoading: loadRoutes    } = useMyRoutes();

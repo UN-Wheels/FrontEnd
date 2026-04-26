@@ -10,6 +10,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Loading, EmptyState } from '../../components/ui';
 import { fmtTime } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationsContext';
 import {
   chatService,
   RouteConversationSummary,
@@ -91,6 +92,7 @@ export function ChatPage() {
   const paramId = params.conversationId as string | undefined;
   const router = useRouter();
   const { user } = useAuth();
+  const { setActiveConversationId } = useNotifications();
 
   // userId = email (mismo que usa el chat-service en JWT sub)
   const userId = user?.email ?? '';
@@ -151,10 +153,14 @@ export function ChatPage() {
     init();
   }, [loadConversations]);
 
-  // Sync selectedId con URL param
+  // Sync selectedId con URL param + registrar conversación activa para suprimir toast
   useEffect(() => {
-    if (paramId) setSelectedId(paramId);
-  }, [paramId]);
+    if (paramId) {
+      setSelectedId(paramId);
+      setActiveConversationId(paramId);
+    }
+    return () => { setActiveConversationId(null); };
+  }, [paramId, setActiveConversationId]);
 
   // ── Socket.IO ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -435,11 +441,13 @@ export function ChatPage() {
   const handleSelectConv = (id: string) => {
     router.push(`/chat/${id}`);
     setSelectedId(id);
+    setActiveConversationId(id);
   };
 
   const handleBack = () => {
     router.push('/chat');
     setSelectedId(null);
+    setActiveConversationId(null);
     setMessages([]);
     setRouteLabel('');
   };

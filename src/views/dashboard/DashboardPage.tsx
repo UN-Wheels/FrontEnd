@@ -1,12 +1,15 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationsContext';
 import { Card, CardTitle, Button, Badge } from '../../components/ui';
 import {
   useAvailableRoutes,
   usePassengerConfirmedTrips,
   useRoutesByIds,
+  queryKeys,
 } from '../../hooks/queries';
 import { fmtTime, fmtDate, shortAddr } from '../../lib/format';
 import { ApiReservation } from '../../services/routesService';
@@ -29,6 +32,16 @@ const TRIP_STATUS_VARIANT: Record<ApiReservation['status'], 'warning' | 'success
 export function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const qc = useQueryClient();
+  const { lastNotification } = useNotifications();
+
+  useEffect(() => {
+    if (!lastNotification) return;
+    const { type } = lastNotification;
+    if (type === 'RESERVATION_ACCEPTED' || type === 'ROUTE_DELETED') {
+      qc.invalidateQueries({ queryKey: queryKeys.reservations.passengerConfirmed() });
+    }
+  }, [lastNotification, qc]);
 
   const { data: allRoutes = [], isLoading: loadingRoutes } = useAvailableRoutes();
   const { data: allTrips = [],  isLoading: loadingTrips  } = usePassengerConfirmedTrips();
