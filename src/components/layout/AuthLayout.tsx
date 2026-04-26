@@ -1,17 +1,26 @@
-import { Outlet, Navigate } from 'react-router-dom';
+'use client';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Loading } from '../ui/Loading';
 import logo from '../../assets/logo.png';
 
-export function AuthLayout() {
+export function AuthLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   if (isLoading) {
     return <Loading fullScreen message="Cargando..." />;
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return null;
   }
 
   return (
@@ -38,7 +47,7 @@ export function AuthLayout() {
         {/* Logo */}
         <div className="text-center mb-7">
           <img
-            src={logo}
+            src={logo.src}
             alt="UN Wheels"
             className="h-20 mx-auto animate-fade-in"
             style={{ filter: 'drop-shadow(0 4px 20px rgba(69,172,171,0.35))' }}
@@ -54,7 +63,7 @@ export function AuthLayout() {
             borderTop: '1px solid rgba(69,172,171,0.45)',
           }}
         >
-          <Outlet />
+          {children}
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: 'rgba(255,255,255,0.18)' }}>

@@ -1,3 +1,4 @@
+'use client';
 import { io, Socket } from 'socket.io-client';
 
 // ─── Tipos de eventos del chat-service (camelCase) ────────────────────────────
@@ -48,12 +49,14 @@ type NotificationCallback = (data: SocketNotificationData) => void;
 type StatusCallback = (data: SocketMessageStatusData) => void;
 
 // ─── URL de Socket.IO ─────────────────────────────────────────────────────────
-// Conecta directo al gateway en dev (localhost:8080) para evitar problemas
-// del proxy de Vite con el handshake de Socket.IO (polling → upgrade WS).
-// En producción VITE_API_URL apunta al gateway.
+// En dev conecta directo al gateway (localhost:8080) porque Next.js no puede
+// hacer proxy del handshake de Socket.IO (polling→WS upgrade es HTTP 101,
+// no HTTP 200). En prod NEXT_PUBLIC_API_URL apunta al gateway.
 const SOCKET_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ||
-  (import.meta.env.DEV ? 'http://localhost:8080' : window.location.origin);
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'development'
+    ? 'http://localhost:8080'
+    : typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080');
 
 class SocketService {
   private socket: Socket | null = null;

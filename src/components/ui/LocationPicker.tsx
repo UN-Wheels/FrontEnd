@@ -1,5 +1,6 @@
+'use client';
+import 'leaflet/dist/leaflet.css';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Location } from '../../types';
 
@@ -27,32 +28,6 @@ interface NominatimResult {
   lon: string;
 }
 
-// ── Sub-components (must live inside MapContainer) ───────────────────────
-function ClickHandler({ onClick }: { onClick: (lat: number, lng: number) => void }) {
-  useMapEvents({ click: (e) => onClick(e.latlng.lat, e.latlng.lng) });
-  return null;
-}
-
-function FlyTo({ lat, lng }: { lat: number; lng: number }) {
-  const map = useMap();
-  const prev = useRef<{ lat: number; lng: number } | null>(null);
-  useEffect(() => {
-    if (prev.current && (prev.current.lat !== lat || prev.current.lng !== lng)) {
-      map.flyTo([lat, lng], 15, { duration: 0.5 });
-    }
-    prev.current = { lat, lng };
-  }, [lat, lng, map]);
-  return null;
-}
-
-function GeoFlyTo({ center }: { center: [number, number] | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (center) map.flyTo(center, 15, { duration: 0.8 });
-  }, [center, map]);
-  return null;
-}
-
 // ── Debounce hook ────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -61,6 +36,74 @@ function useDebounce<T>(value: T, ms: number): T {
     return () => clearTimeout(t);
   }, [value, ms]);
   return debounced;
+}
+
+// ── PickerMap ─────────────────────────────────────────────────────────────
+interface PickerMapProps {
+  initialCenter: [number, number];
+  initialZoom: number;
+  temp: Location | null;
+  geoCenter: [number, number] | null;
+  onMapClick: (lat: number, lng: number) => void;
+}
+
+function PickerMap({ initialCenter, initialZoom, temp, geoCenter, onMapClick }: PickerMapProps) {
+  const containerRef   = useRef<HTMLDivElement>(null);
+  const mapRef         = useRef<L.Map | null>(null);
+  const markerRef      = useRef<L.Marker | null>(null);
+  // Stable ref so the click handler never captures a stale closure.
+  const onClickRef     = useRef(onMapClick);
+  useEffect(() => { onClickRef.current = onMapClick; });
+
+  // Initialize map imperatively — clears _leaflet_id before L.map() so
+  // React 18.3 StrictMode callback-ref double-invoke doesn't throw.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    (el as unknown as Record<string, unknown>)._leaflet_id = undefined;
+
+    const map = L.map(el).setView(initialCenter, initialZoom);
+    mapRef.current = map;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      onClickRef.current(e.latlng.lat, e.latlng.lng);
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current    = null;
+      markerRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update temp marker and fly to it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    markerRef.current?.remove();
+    markerRef.current = null;
+
+    if (temp) {
+      markerRef.current = L.marker([temp.lat, temp.lng], { icon: pickerIcon }).addTo(map);
+      map.flyTo([temp.lat, temp.lng], 15, { duration: 0.5 });
+    }
+  }, [temp]);
+
+  // Fly to geolocation when it resolves.
+  useEffect(() => {
+    if (geoCenter && mapRef.current) {
+      mapRef.current.flyTo(geoCenter, 15, { duration: 0.8 });
+    }
+  }, [geoCenter]);
+
+  return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />;
 }
 
 // ── LocationPicker props ─────────────────────────────────────────────────
@@ -264,25 +307,13 @@ export function LocationPicker({ label, value, onChange, placeholder, error, aut
               <span className="absolute top-2 left-1/2 -translate-x-1/2 z-[400] bg-black/60 text-white text-xs px-3 py-1 rounded-full pointer-events-none whitespace-nowrap">
                 Haz clic en el mapa para colocar un pin
               </span>
-              <MapContainer
-                center={initialCenter}
-                zoom={initialZoom}
-                style={{ height: '100%', width: '100%' }}
-                scrollWheelZoom
-              >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                />
-                <ClickHandler onClick={handleMapClick} />
-                <GeoFlyTo center={geoCenter} />
-                {temp && (
-                  <>
-                    <Marker position={[temp.lat, temp.lng]} icon={pickerIcon} />
-                    <FlyTo lat={temp.lat} lng={temp.lng} />
-                  </>
-                )}
-              </MapContainer>
+              <PickerMap
+                initialCenter={initialCenter}
+                initialZoom={initialZoom}
+                temp={temp}
+                geoCenter={geoCenter}
+                onMapClick={handleMapClick}
+              />
             </div>
 
             {/* Selected location preview */}

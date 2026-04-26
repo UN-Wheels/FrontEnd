@@ -1,3 +1,4 @@
+'use client';
 import { useState } from 'react';
 import { Button, Input, Select } from '../ui';
 import { CreateVehiclePayload } from '../../services/vehiclesService';
