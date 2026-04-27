@@ -219,14 +219,25 @@ export function Topbar() {
           </button>
 
           {showNotifPanel && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 flex flex-col overflow-hidden animate-fade-in">
+            <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 flex flex-col overflow-hidden animate-fade-in">
+
+              {/* Flecha indicadora */}
+              <div className="absolute -top-2 right-3 w-4 h-4 bg-white border-l border-t border-gray-100 rotate-45 z-10" />
+
               {/* Header del panel */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <span className="font-semibold text-gray-900 text-sm">Notificaciones</span>
+              <div className="relative flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white z-20">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-gray-900 text-sm">Notificaciones</span>
+                  {unreadCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
                 {unreadCount > 0 && (
                   <button
                     onClick={() => markAllRead()}
-                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline transition-colors"
                   >
                     Marcar todo leído
                   </button>
@@ -234,16 +245,36 @@ export function Topbar() {
               </div>
 
               {/* Lista */}
-              <div className="overflow-y-auto max-h-80">
+              <div className="overflow-y-auto max-h-80 divide-y divide-gray-50">
                 {notifLoading ? (
-                  <p className="text-sm text-gray-400 text-center py-8">Cargando...</p>
+                  /* Estado de carga con spinner */
+                  <div className="flex flex-col items-center justify-center py-10 gap-3">
+                    <svg className="w-6 h-6 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <p className="text-sm text-gray-400">Cargando notificaciones…</p>
+                  </div>
                 ) : notifications.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8">Sin notificaciones</p>
+                  /* Estado vacío con ícono */
+                  <div className="flex flex-col items-center justify-center py-10 px-4 gap-3">
+                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+                      <svg className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-700">Sin notificaciones</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Te avisaremos cuando haya novedades</p>
+                    </div>
+                  </div>
                 ) : (
                   notifications.map((n) => (
                     <div
                       key={n._id}
-                      className={`group flex items-start gap-2.5 px-4 py-3 border-b border-gray-50 last:border-0 transition-colors hover:bg-gray-50 ${!n.read ? 'bg-blue-50/60' : ''}`}
+                      className={`group flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-gray-50 ${!n.read ? 'bg-blue-50/60' : 'bg-white'}`}
                     >
                       {/* Zona clicable principal → navega */}
                       <button
@@ -286,6 +317,18 @@ export function Topbar() {
                   ))
                 )}
               </div>
+
+              {/* Footer — solo cuando hay notificaciones — eliminar si no se va a hacer pagina de notificaciones  */}
+              {notifications.length > 0 && (
+                <div className="border-t border-gray-100 px-4 py-2.5 bg-gray-50">
+                  <button
+                      onClick={() => setShowNotifPanel(false)}
+                      className="w-full text-xs text-center text-blue-600 hover:text-blue-700 hover:underline transition-colors font-medium"
+                  >
+                  Ver todas las notificaciones
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

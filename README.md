@@ -1,6 +1,6 @@
 # UN Wheels Frontend
 
-A modern React-based frontend application for UniWheels, a platform designed to connect university students for ride-sharing and route management.
+A modern Next.js-based frontend application for UniWheels, a platform designed to connect university students for ride-sharing and route management.
 
 ## 🚀 Features
 
@@ -14,12 +14,12 @@ A modern React-based frontend application for UniWheels, a platform designed to 
 
 ## 🛠️ Tech Stack
 
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS with PostCSS
-- **Routing**: React Router DOM v6
-- **State Management**: React Context API
+- **Framework**: Next.js 15 with React 18 and TypeScript
+- **Styling**: Tailwind CSS
+- **Routing**: Next.js App Router
+- **State Management**: React Context API + TanStack Query
 - **Maps**: Leaflet with React Leaflet
+- **Real-time**: Socket.io Client
 - **Development Tools**: ESLint, TypeScript
 
 ## 📦 Installation
@@ -35,69 +35,84 @@ A modern React-based frontend application for UniWheels, a platform designed to 
    npm install
    ```
 
-3. **Start development server**
+3. **Configure environment**
+   ```bash
+   cp env.example .env.local
+   # Edit .env.local with your API configuration
+   ```
+
+4. **Start development server**
    ```bash
    npm run dev
    ```
 
-4. **Open your browser**
-   Navigate to `http://localhost:5173`
+5. **Open your browser**
+   Navigate to `http://localhost:3000`
 
 ## 📜 Available Scripts
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
+- `npm run start` - Start production server
 - `npm run lint` - Run ESLint
-- `npm run preview` - Preview production build
 
 ## 🏗️ Project Structure
 
 ```
+app/                              # Next.js App Router
+├── (auth)/                       # Authentication routes (grouped)
+│   ├── login/
+│   └── register/
+├── (dashboard)/                  # Protected dashboard routes
+│   ├── dashboard/
+│   ├── routes/
+│   ├── bookings/
+│   └── profile/
+├── api/                          # API routes
+├── globals.css                   # Global styles
+├── layout.tsx                    # Root layout
+├── page.tsx                      # Home/Landing page
+└── providers.tsx                 # Client providers (Query, Auth, etc.)
+
 src/
-├── App.tsx                      # Main application component
-├── main.tsx                     # Application entry point
-├── index.css                    # Global styles
-├── vite-env.d.ts               # Vite environment types
-├── assets/                      # Static assets (images, icons, etc.)
+├── assets/                       # Static assets (images, icons, etc.)
 ├── components/
-│   ├── layout/                  # Layout components (Header, Sidebar, etc.)
-│   └── ui/                      # Reusable UI components (Button, Card, Form, etc.)
+│   ├── layout/                   # Layout components (Header, Sidebar, etc.)
+│   └── ui/                       # Reusable UI components (Button, Card, Form, etc.)
 ├── context/
-│   ├── AuthContext.tsx          # Authentication state management
-│   └── mockAuthContext.tsx      # Mock authentication for testing
+│   └── AuthContext.tsx           # Authentication state management
 ├── hooks/
-│   ├── useApi.ts                # Custom hook for API requests
-│   └── useForm.ts               # Custom hook for form handling
-├── pages/
-│   ├── auth/                    # Authentication pages (Login, Register, etc.)
-│   ├── bookings/                # Ride bookings pages
-│   ├── chat/                    # Chat and messaging functionality
-│   ├── dashboard/               # User dashboard
-│   ├── landing/                 # Landing page
-│   ├── profile/                 # User profile management
-│   └── routes/                  # Route search and management
+│   ├── useApi.ts                 # Custom hook for API requests
+│   └── useForm.ts                # Custom hook for form handling
 ├── services/
-│   ├── api.ts                   # API client and request handling
-│   ├── mockData.ts              # Mock data for development
-│   └── index.ts                 # Services exports
-└── types/                       # TypeScript type definitions
+│   ├── api.ts                    # API client and request handling
+│   └── index.ts                  # Services exports
+├── types/                        # TypeScript type definitions
+└── views/                        # Page-level components
 ```
 
 ## 🔧 Development
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
-- npm or yarn
+- Node.js (v18 or higher)
+- npm
 
-### Code Style
+### Environment Variables
 
-This project uses ESLint for code linting. Make sure to run `npm run lint` before committing your changes.
+Create a `.env.local` file with the following variables:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3001
+```
 
 ### Building for Production
 
 ```bash
 npm run build
+npm run start
+```
 ```
 
 The built files will be in the `dist/` directory.
