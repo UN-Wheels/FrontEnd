@@ -9,9 +9,9 @@
 }
 
 body {
-  font-family: 'Inter', sans-serif;
-  background-color: #f8fafc;
-  color: #1e293b;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: #F5F3FF;
+  color: #1e1b4b;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -38,7 +38,7 @@ body {
 
 /* Focus styles */
 :focus-visible {
-  outline: 2px solid #45acab;
+  outline: 2px solid #6366F1;
   outline-offset: 2px;
 }
 
@@ -178,8 +178,8 @@ html {
   color: rgba(255, 255, 255, 0.22);
 }
 .auth-input:focus {
-  border-color: rgba(69, 172, 171, 0.65);
-  box-shadow: 0 0 0 3px rgba(69, 172, 171, 0.13);
+  border-color: rgba(99, 102, 241, 0.65);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.13);
 }
 .auth-input-error {
   border-color: rgba(248, 113, 113, 0.55) !important;
