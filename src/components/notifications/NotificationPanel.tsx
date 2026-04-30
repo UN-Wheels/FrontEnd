@@ -110,12 +110,15 @@ export function NotificationPanel({
         )}
       </div>
 
-      {/* ── Footer (solo si hay items) ── */}
-      {!isLoading && notifications.length > 0 && (
+      {/* ── Footer ── */}
+      {!isLoading && (
         <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/60">
-          <p className="text-[10px] text-gray-400 text-center">
-            Mostrando las {notifications.length} más recientes
-          </p>
+          <button
+            onClick={() => { router.push('/notifications'); onClose(); }}
+            className="w-full text-[11px] font-medium text-primary hover:text-primary-dark hover:underline transition-colors text-center cursor-pointer"
+          >
+            Ver todas las notificaciones
+          </button>
         </div>
       )}
     </div>
