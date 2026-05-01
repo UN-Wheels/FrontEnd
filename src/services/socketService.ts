@@ -80,16 +80,23 @@ class SocketService {
       path: '/api/chat/socket.io',
       transports: ['polling', 'websocket'],
       reconnection: true,
-      reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,
     });
 
     this.socket.on('connect', () =>
       console.log('✅ Socket.IO conectado:', this.socket?.id),
     );
-    this.socket.on('disconnect', (reason) =>
-      console.log('❌ Socket.IO desconectado:', reason),
-    );
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Socket.IO desconectado:', reason);
+
+      // Si el servidor fuerza el disconnect, Socket.IO no auto-reconecta.
+      if (reason === 'io server disconnect') {
+        this.socket?.connect();
+      }
+    });
     this.socket.on('connect_error', (err) =>
       console.error('Socket.IO error de conexión:', err.message),
     );

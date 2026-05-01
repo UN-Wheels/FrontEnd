@@ -61,6 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const mapped = mapApiUser(await res.json());
           setUser(mapped);
           writeCache(mapped);
+        } else if (res.status === 401 || res.status === 403) {
+          // Sesión vencida / token inválido: limpiar estado local
+          setUser(null);
+          writeCache(null);
         } else {
           setUser(null);
           writeCache(null);

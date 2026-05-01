@@ -65,12 +65,22 @@ class NotificationsSocketService {
       path: '/api/notifications/socket.io',
       transports: ['polling', 'websocket'],
       reconnection: true,
-      reconnectionAttempts: 10,
       reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,
     });
 
     this.socket.on('connect', () => {
       this.socket?.emit('join', { email: userEmail });
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      // Si el servidor fuerza el disconnect, Socket.IO no auto-reconecta.
+      // Forzamos reconnect para no perder realtime.
+      if (reason === 'io server disconnect') {
+        this.socket?.connect();
+      }
     });
 
     this.socket.on('notification', (n: AppNotification) => {

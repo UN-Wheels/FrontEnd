@@ -3,11 +3,17 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
 
-  // Rewrites actúan como proxy server-side.
-  // En desarrollo (NEXT_PUBLIC_API_URL vacío) proxean /api/* → localhost:8080.
-  // En producción NEXT_PUBLIC_API_URL se bake en build time apuntando al gateway.
+  // Rewrites actuan como proxy server-side: corren DENTRO del contenedor de Next.js.
+  // Por eso NO se puede usar NEXT_PUBLIC_API_URL aqui — esa variable apunta al
+  // gateway desde el navegador del usuario (http://localhost:8080), pero
+  // dentro del contenedor "localhost" es el propio contenedor del frontend.
+  // INTERNAL_GATEWAY_URL debe apuntar al gateway via la red de Docker
+  // (ej. http://api-gateway:8080) para que los rewrites SSR funcionen.
   async rewrites() {
-    const gatewayUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    const gatewayUrl =
+      process.env.INTERNAL_GATEWAY_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'http://localhost:8080';
     return {
       beforeFiles: [
         { source: '/api/auth/:path*',          destination: `${gatewayUrl}/api/auth/:path*` },

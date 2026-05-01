@@ -1,0 +1,262 @@
+services:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  INFRAESTRUCTURA (bases de datos + broker)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-loggeo_base_db}
+      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-loggeo_base_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  MICROSERVICIOS DE NEGOCIO
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  loggueo-service:
+    build:
+      context: ../loggueo_service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-loggeo_base_db}
+      SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
+      DEBUG:                       ${AUTH_DEBUG:-False}
+      ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').getcode()==200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    restart: unless-stopped
+
+  chat-service:
+    build:
+      context: ../chat-service
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV:          production
+      PORT:              3001
+      MONGODB_URI:       mongodb://mongo:27017/uniwheels_chat
+      JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
+      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:3000}
+      API_GATEWAY_URL:   http://api-gateway:8080
+      RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
+    ports:
+      - "3001:3001"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3001/health',(res)=>process.exit(res.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    restart: unless-stopped
+
+  notifications-service:
+    build:
+      context: ../notifications-service
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV:          production
+      PORT:              3002
+      MONGODB_URI:       mongodb://mongo:27017/uniwheels_notifications
+      JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
+      RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
+      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "3002:3002"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3002/health',(res)=>process.exit(res.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  routes-reservations-service:
+    build:
+      context: ../routes-reservations-service
+      dockerfile: Dockerfile
+    environment:
+      PORT:         4000
+      MONGO_URI:    mongodb://mongo:27017/routesdb
+      JWT_SECRET:   ${JWT_SHARED_SECRET:-dev_secret_change_me}
+      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
+    ports:
+      - "4000:4000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:4000/health',(res)=>process.exit(res.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  API GATEWAY
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: ../api-gateway
+      dockerfile: Dockerfile
+    environment:
+      PORT:                      8080
+      JWT_SECRET:                ${JWT_SHARED_SECRET:-dev_secret_change_me}
+      AUTH_SERVICE_URL:          http://loggueo-service:8000
+      CHAT_SERVICE_URL:          http://chat-service:3001
+      ROUTES_SERVICE_URL:        http://routes-reservations-service:4000
+      NOTIFICATIONS_SERVICE_URL: http://notifications-service:3002
+      COOKIE_MAX_AGE:            ${COOKIE_MAX_AGE:-1800}
+      FRONTEND_URL:              ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "8080:8080"
+    depends_on:
+      loggueo-service:
+        condition: service_healthy
+      chat-service:
+        condition: service_healthy
+      routes-reservations-service:
+        condition: service_healthy
+      notifications-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:8080/health',(res)=>process.exit(res.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  FRONTEND (Next.js — output: standalone)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: .
+      dockerfile: dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    environment:
+      PORT:     3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3000',(res)=>process.exit(res.statusCode<500?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mongo_data:
+  rabbitmq_data:
