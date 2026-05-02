@@ -45,6 +45,7 @@ class NotificationsSocketService {
   private socket: Socket | null = null;
   private notificationCbs = new Set<NotificationCb>();
   private unreadCbs = new Set<UnreadCb>();
+  private authFailed = false;
 
   connect(userEmail: string): void {
     if (this.socket?.connected) {
@@ -57,6 +58,8 @@ class NotificationsSocketService {
       this.socket.disconnect();
       this.socket = null;
     }
+
+    this.authFailed = false;
 
     // Conecta al namespace /notifications en el gateway.
     // El gateway proxea /api/notifications/socket.io → /socket.io en el servicio.
@@ -72,14 +75,21 @@ class NotificationsSocketService {
     });
 
     this.socket.on('connect', () => {
+      this.authFailed = false;
       this.socket?.emit('join', { email: userEmail });
     });
 
     this.socket.on('disconnect', (reason) => {
-      // Si el servidor fuerza el disconnect, Socket.IO no auto-reconecta.
-      // Forzamos reconnect para no perder realtime.
-      if (reason === 'io server disconnect') {
-        this.socket?.connect();
+      // Si el servidor fuerza el disconnect y no fue por auth, reconectar.
+      // Si fue auth failure, no reconectar para evitar el loop infinito.
+      if (reason === 'io server disconnect' && !this.authFailed) {
+        setTimeout(() => this.socket?.connect(), 3000);
+      }
+    });
+
+    this.socket.on('error', (err: { message: string }) => {
+      if (err.message === 'Autenticacion fallida') {
+        this.authFailed = true;
       }
     });
 
