@@ -168,13 +168,11 @@ export function DashboardPage() {
                   onClick={() => router.push(`/routes/${route.id}`)}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
-                      {route.origin.address} → {route.destination.address}
+                    <p className="font-medium text-gray-900 truncate text-sm">
+                      {shortAddr(route.origin.address)}<span className="mx-1 text-gray-400">→</span>{shortAddr(route.destination.address)}
                     </p>
                     <p className="text-sm text-gray-500">
-                      {new Date(route.departureTime).toLocaleTimeString('es-CO', {
-                        hour: '2-digit', minute: '2-digit',
-                      })}
+                      {fmtTime(route.departureTime)}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">

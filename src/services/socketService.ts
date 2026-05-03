@@ -63,6 +63,7 @@ class SocketService {
   private messageCallbacks = new Set<MessageCallback>();
   private notificationCallbacks = new Set<NotificationCallback>();
   private statusCallbacks = new Set<StatusCallback>();
+  private authFailed = false;
 
   connect(): Socket {
     if (this.socket?.connected) return this.socket;
@@ -72,6 +73,8 @@ class SocketService {
       this.socket = null;
     }
 
+    this.authFailed = false;
+
     this.socket = io(SOCKET_URL, {
       withCredentials: true,
       // Path que coincide con el proxy api/chat/* del gateway.
@@ -80,22 +83,35 @@ class SocketService {
       path: '/api/chat/socket.io',
       transports: ['polling', 'websocket'],
       reconnection: true,
-      reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,
     });
 
-    this.socket.on('connect', () =>
-      console.log('✅ Socket.IO conectado:', this.socket?.id),
-    );
-    this.socket.on('disconnect', (reason) =>
-      console.log('❌ Socket.IO desconectado:', reason),
-    );
+    this.socket.on('connect', () => {
+      this.authFailed = false;
+      console.log('✅ Socket.IO conectado:', this.socket?.id);
+    });
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Socket.IO desconectado:', reason);
+
+      // Si el servidor fuerza el disconnect y NO fue por auth, Socket.IO
+      // no auto-reconecta — lo hacemos manualmente con backoff.
+      // Si fue auth failure, no reconectamos para evitar el loop infinito.
+      if (reason === 'io server disconnect' && !this.authFailed) {
+        setTimeout(() => this.socket?.connect(), 3000);
+      }
+    });
     this.socket.on('connect_error', (err) =>
       console.error('Socket.IO error de conexión:', err.message),
     );
-    this.socket.on('error', (err: { message: string }) =>
-      console.error('Socket.IO error:', err.message),
-    );
+    this.socket.on('error', (err: { message: string }) => {
+      if (err.message === 'Autenticacion fallida') {
+        this.authFailed = true;
+      }
+      console.error('Socket.IO error:', err.message);
+    });
 
     // Nuevo mensaje en tiempo real (camelCase – chat-service)
     this.socket.on('message:new', (data: SocketMessageData) => {

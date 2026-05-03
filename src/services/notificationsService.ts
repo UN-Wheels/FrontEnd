@@ -45,6 +45,7 @@ class NotificationsSocketService {
   private socket: Socket | null = null;
   private notificationCbs = new Set<NotificationCb>();
   private unreadCbs = new Set<UnreadCb>();
+  private authFailed = false;
 
   connect(userEmail: string): void {
     if (this.socket?.connected) {
@@ -58,6 +59,8 @@ class NotificationsSocketService {
       this.socket = null;
     }
 
+    this.authFailed = false;
+
     // Conecta al namespace /notifications en el gateway.
     // El gateway proxea /api/notifications/socket.io → /socket.io en el servicio.
     this.socket = io(`${getGatewayUrl()}/notifications`, {
@@ -65,12 +68,29 @@ class NotificationsSocketService {
       path: '/api/notifications/socket.io',
       transports: ['polling', 'websocket'],
       reconnection: true,
-      reconnectionAttempts: 10,
       reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,
     });
 
     this.socket.on('connect', () => {
+      this.authFailed = false;
       this.socket?.emit('join', { email: userEmail });
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      // Si el servidor fuerza el disconnect y no fue por auth, reconectar.
+      // Si fue auth failure, no reconectar para evitar el loop infinito.
+      if (reason === 'io server disconnect' && !this.authFailed) {
+        setTimeout(() => this.socket?.connect(), 3000);
+      }
+    });
+
+    this.socket.on('error', (err: { message: string }) => {
+      if (err.message === 'Autenticacion fallida') {
+        this.authFailed = true;
+      }
     });
 
     this.socket.on('notification', (n: AppNotification) => {

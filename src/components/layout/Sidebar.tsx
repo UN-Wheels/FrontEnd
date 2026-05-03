@@ -85,13 +85,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-full w-64 bg-secondary-dark transform transition-transform duration-300 ease-in-out
+          fixed top-0 left-0 z-50 h-full w-64 bg-secondary transform transition-transform duration-300 ease-in-out
           lg:translate-x-0 lg:static lg:z-0
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
         <div className="h-full flex flex-col">
-          <div className="flex items-center px-6 py-5 border-b border-secondary-medium">
+          <div className="flex items-center px-6 py-5 border-b border-white/10">
             <img src={logotype.src} alt="UN Wheels" className="h-8" />
           </div>
 
@@ -104,8 +104,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     onClick={onClose}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
                       pathname === item.path || pathname.startsWith(item.path + '/')
-                        ? 'bg-primary text-white'
-                        : 'text-gray-300 hover:bg-secondary-medium hover:text-white'
+                        ? 'bg-primary/20 text-primary-light'
+                        : 'text-white/60 hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     {item.icon}
@@ -116,7 +116,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </ul>
           </nav>
 
-          <div className="px-4 py-4 border-t border-secondary-medium">
+          <div className="px-4 py-4 border-t border-white/10">
             <div className="flex items-center gap-3 text-gray-400 text-sm">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
