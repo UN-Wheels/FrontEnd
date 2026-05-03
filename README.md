@@ -18,6 +18,7 @@ Frontend de UN-Wheels construido con **Next.js (App Router)**, TypeScript y Tail
 - **Styling**: Tailwind CSS with PostCSS
 - **State Management**: React Context API
 - **Maps**: Leaflet with React Leaflet
+- **Real-time**: Socket.io Client
 - **Development Tools**: ESLint, TypeScript
 
 ## 📦 Installation
@@ -33,7 +34,13 @@ Frontend de UN-Wheels construido con **Next.js (App Router)**, TypeScript y Tail
    npm install
    ```
 
-3. **Start development server**
+3. **Configure environment**
+   ```bash
+   cp env.example .env.local
+   # Edit .env.local with your API configuration
+   ```
+
+4. **Start development server**
    ```bash
    npm run dev
    ```
@@ -77,6 +84,7 @@ Nota: este compose asume que existen las carpetas hermanas `../api-gateway`, `..
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
+- `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 - `npm run start` - Start production server
 
@@ -88,17 +96,24 @@ El routing vive en `app/` (App Router) y el código reusable en `src/`.
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
-- npm or yarn
+- Node.js (v18 or higher)
+- npm
 
-### Code Style
+### Environment Variables
 
-This project uses ESLint for code linting. Make sure to run `npm run lint` before committing your changes.
+Create a `.env.local` file with the following variables:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3001
+```
 
 ### Building for Production
 
 ```bash
 npm run build
+npm run start
+```
 ```
 
 The built files will be in the `dist/` directory.
