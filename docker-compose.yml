@@ -1,3 +1,5 @@
+name: uniwheels
+
 services:
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -6,6 +8,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    container_name: auth-db
     environment:
       POSTGRES_DB:       ${POSTGRES_DB:-loggeo_base_db}
       POSTGRES_USER:     ${POSTGRES_USER:-postgres}
@@ -21,12 +24,14 @@ services:
       retries: 8
     restart: unless-stopped
 
-  mongo:
+  # MongoDB por microservicio (host/instancia separados)
+  mongo-chat:
     image: mongo:7
+    container_name: chat-db
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "${MONGO_CHAT_PORT:-27017}:27017"
     volumes:
-      - mongo_data:/data/db
+      - mongo_chat_data:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
       interval: 10s
@@ -35,8 +40,58 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  mongo-notifications:
+    image: mongo:7
+    container_name: notifications-db
+    ports:
+      - "${MONGO_NOTIFICATIONS_PORT:-27018}:27017"
+    volumes:
+      - mongo_notifications_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+    restart: unless-stopped
+
+  mongo-routes:
+    image: mongo:7
+    container_name: routes-db
+    ports:
+      - "${MONGO_ROUTES_PORT:-27019}:27017"
+    volumes:
+      - mongo_routes_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+    restart: unless-stopped
+
+  # PostgreSQL + PostGIS (microservicio de búsquedas)
+  search-postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: route-search-postgres
+    environment:
+      POSTGRES_DB:       routesearch
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432" # expuesto en 5433 para evitar choque con el postgres de auth
+    volumes:
+      - route_search_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
+    container_name: event-broker
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin
@@ -61,6 +116,7 @@ services:
     build:
       context: ../loggueo_service
       dockerfile: Dockerfile
+    container_name: auth-service
     environment:
       DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-loggeo_base_db}
       SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
@@ -91,10 +147,11 @@ services:
     build:
       context: ../chat-service
       dockerfile: Dockerfile
+    container_name: chat-service
     environment:
       NODE_ENV:          production
       PORT:              3001
-      MONGODB_URI:       mongodb://mongo:27017/uniwheels_chat
+      MONGODB_URI:       mongodb://mongo-chat:27017/uniwheels_chat
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
       CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:3000}
       API_GATEWAY_URL:   http://api-gateway:8080
@@ -102,7 +159,7 @@ services:
     ports:
       - "3001:3001"
     depends_on:
-      mongo:
+      mongo-chat:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -124,17 +181,18 @@ services:
     build:
       context: ../notifications-service
       dockerfile: Dockerfile
+    container_name: notifications-service
     environment:
       NODE_ENV:          production
       PORT:              3002
-      MONGODB_URI:       mongodb://mongo:27017/uniwheels_notifications
+      MONGODB_URI:       mongodb://mongo-notifications:27017/uniwheels_notifications
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
       RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
       CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:3000}
     ports:
       - "3002:3002"
     depends_on:
-      mongo:
+      mongo-notifications:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -156,15 +214,16 @@ services:
     build:
       context: ../routes-reservations-service
       dockerfile: Dockerfile
+    container_name: routes-service
     environment:
       PORT:         4000
-      MONGO_URI:    mongodb://mongo:27017/routesdb
+      MONGO_URI:    mongodb://mongo-routes:27017/routesdb
       JWT_SECRET:   ${JWT_SHARED_SECRET:-dev_secret_change_me}
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
     ports:
       - "4000:4000"
     depends_on:
-      mongo:
+      mongo-routes:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -182,6 +241,24 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  search-service:
+    build:
+      context: ../search-service
+      dockerfile: Dockerfile
+    container_name: route-search-service
+    environment:
+      PORT: 6000
+      DATABASE_URL: postgresql://postgres:postgres@search-postgres:5432/routesearch?sslmode=disable
+      ROUTES_SERVICE_URL: http://routes-reservations-service:4000
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-60}
+      JWT_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
+    ports:
+      - "6000:6000"
+    depends_on:
+      search-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   # ─────────────────────────────────────────────────────────────────────────────
   #  API GATEWAY
   # ─────────────────────────────────────────────────────────────────────────────
@@ -190,6 +267,7 @@ services:
     build:
       context: ../api-gateway
       dockerfile: Dockerfile
+    container_name: api-gateway
     environment:
       PORT:                      8080
       JWT_SECRET:                ${JWT_SHARED_SECRET:-dev_secret_change_me}
@@ -234,6 +312,7 @@ services:
       dockerfile: dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    container_name: web-app
     environment:
       PORT:     3000
       HOSTNAME: 0.0.0.0
@@ -258,5 +337,8 @@ services:
 
 volumes:
   postgres_data:
-  mongo_data:
+  mongo_chat_data:
+  mongo_notifications_data:
+  mongo_routes_data:
   rabbitmq_data:
+  route_search_pgdata:

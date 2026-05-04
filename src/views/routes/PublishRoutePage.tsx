@@ -12,6 +12,7 @@ interface PublishRouteFormValues {
   date: string;
   time: string;
   price: string;
+  seats: string;
 }
 
 export function PublishRoutePage() {
@@ -45,13 +46,22 @@ export function PublishRoutePage() {
     if (step === 2) {
       if (!values.price)            errors.push({ field: 'price', message: 'El precio es obligatorio' });
       if (Number(values.price) < 0) errors.push({ field: 'price', message: 'El precio debe ser mayor o igual a 0' });
+
+      if (!values.seats) errors.push({ field: 'seats', message: 'Los cupos son obligatorios' });
+      const seats = Number(values.seats);
+      if (!Number.isFinite(seats) || seats < 1) {
+        errors.push({ field: 'seats', message: 'Los cupos deben ser mínimo 1' });
+      }
+      if (Number.isFinite(seats) && seats > 5) {
+        errors.push({ field: 'seats', message: 'El máximo de cupos es 5' });
+      }
     }
     return errors;
   };
 
   const { values, handleChange, getFieldError } =
     useForm<PublishRouteFormValues>({
-      initialValues: { date: '', time: '', price: '' },
+      initialValues: { date: '', time: '', price: '', seats: '1' },
       validate: validateForm,
       onSubmit: async () => {},
     });
@@ -72,6 +82,26 @@ export function PublishRoutePage() {
         status: 'ACTIVE',
         vehicleId: vehicleId !== null ? String(vehicleId) : undefined,
       });
+
+      // Crear cupos iniciales para la fecha seleccionada.
+      // Esto evita que la ruta quede "sin disponibilidad" si el usuario no configura recurrencias.
+      try {
+        await routesService.addAvailabilityRule(newRoute.id, {
+          kind: 'SPECIFIC_DATES',
+          entries: [
+            {
+              date: values.date,
+              seats: Number(values.seats),
+            },
+          ],
+        });
+      } catch (availabilityErr: unknown) {
+        const msg = availabilityErr instanceof Error
+          ? availabilityErr.message
+          : 'No se pudieron asignar cupos iniciales. Configúralos en Disponibilidad.';
+        setSubmitError(msg);
+      }
+
       setCreatedRouteId(newRoute.id);
       setStep(4);
     } catch (err: unknown) {
@@ -211,7 +241,7 @@ export function PublishRoutePage() {
             <div className="space-y-4">
               <CardTitle>Precio</CardTitle>
               <p className="text-gray-600 text-sm mb-4">
-                ¿Cuánto cobrarás por cupo? Los cupos disponibles por fecha se configuran en el siguiente paso.
+                ¿Cuánto cobrarás por cupo? Define también cuántos cupos tendrá la ruta para la fecha seleccionada.
               </p>
 
               <Input
@@ -223,6 +253,18 @@ export function PublishRoutePage() {
                 onChange={handleChange}
                 error={getFieldError('price')}
                 min="0"
+              />
+
+              <Input
+                label="Cupos disponibles"
+                type="number"
+                name="seats"
+                placeholder="Ej: 3"
+                value={values.seats}
+                onChange={handleChange}
+                error={getFieldError('seats')}
+                min="1"
+                max="5"
               />
 
               {origin && destination && (
@@ -289,6 +331,12 @@ export function PublishRoutePage() {
                   Configura en qué fechas y con cuántos cupos estará disponible tu ruta.
                 </p>
               </div>
+
+              {submitError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                  {submitError}
+                </div>
+              )}
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-start gap-2">
                 <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">

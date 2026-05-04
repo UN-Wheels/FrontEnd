@@ -116,6 +116,8 @@ export function RouteDetailPage() {
     (route.origin.lng + route.destination.lng) / 2,
   ];
 
+  const isOwner = !!user && route.driverId === user.email;
+
   const driverName    = route.driver?.name ?? route.driver?.email ?? 'Conductor';
   const driverEmail   = route.driver?.email ?? '';
   const initials      = route.driver?.name
@@ -222,11 +224,23 @@ export function RouteDetailPage() {
             </div>
 
             <div className="mt-6 space-y-3">
-              <Button variant="primary" className="w-full" onClick={handleOpenModal} disabled={slots.length === 0}>
-                {slots.length === 0 ? 'Sin cupos disponibles' : 'Solicitar Cupo'}
-              </Button>
+              {!isOwner && (
+                <Button variant="primary" className="w-full" onClick={handleOpenModal} disabled={slots.length === 0}>
+                  {slots.length === 0 ? 'Sin cupos disponibles' : 'Solicitar Cupo'}
+                </Button>
+              )}
 
-              {user && route.driverId !== user.email && (
+              {/*isOwner && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => router.push(`/publish?routeId=${route.id}`)}
+                >
+                  Editar ruta
+                </Button>
+              )*/}
+
+              {user && !isOwner && (
                 <div>
                   <Button
                     variant="outline" className="w-full"
@@ -251,8 +265,13 @@ export function RouteDetailPage() {
                 {slots.map(slot => (
                   <div
                     key={slot.date}
-                    className="p-3 bg-gray-50 border border-gray-100 rounded-xl hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm transition-all cursor-pointer group"
+                    className={`p-3 bg-gray-50 border border-gray-100 rounded-xl transition-all group ${
+                      isOwner
+                        ? 'opacity-75 cursor-not-allowed'
+                        : 'hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm cursor-pointer'
+                    }`}
                     onClick={() => {
+                      if (isOwner) return;
                       setSelectedDate(slot.date.split('T')[0]);
                       setBookingError('');
                       setBookingSuccess(false);
