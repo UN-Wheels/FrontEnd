@@ -275,6 +275,7 @@ services:
       CHAT_SERVICE_URL:          http://chat-service:3001
       ROUTES_SERVICE_URL:        http://routes-reservations-service:4000
       NOTIFICATIONS_SERVICE_URL: http://notifications-service:3002
+      SEARCH_SERVICE_URL:        http://route-search-service:6000
       COOKIE_MAX_AGE:            ${COOKIE_MAX_AGE:-1800}
       FRONTEND_URL:              ${FRONTEND_URL:-http://localhost:3000}
     ports:
