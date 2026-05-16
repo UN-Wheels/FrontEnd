@@ -1,37 +1,54 @@
 name: uniwheels
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  NETWORK SEGMENTATION PATTERN
+#  NETWORK SEGMENTATION + REVERSE PROXY PATTERN
 #
-#  Three isolated zones enforce the principle of least-privilege connectivity:
+#  Five isolated zones — only the edge zone is reachable from the host.
 #
 #  ┌──────────────────────────────────────────────────────────────────────────┐
-#  │  DMZ  (public)          frontend  ←→  api-gateway                       │
-#  │  SERVICES  (internal)   api-gateway  ←→  microservices                  │
-#  │  DATA  (internal)       microservices  ←→  databases + broker            │
+#  │  EDGE          (public)    rp-web ─┐                                    │
+#  │                            rp-mobile ─┐                                  │
+#  │  WEB-ZONE      (internal)  rp-web ←─→ frontend (Next.js SSR)            │
+#  │  GATEWAY-ZONE  (internal)  rp-mobile ←─→ api-gateway                    │
+#  │                            frontend ←─→ api-gateway                     │
+#  │  SERVICES      (internal)  api-gateway ←─→ microservices                │
+#  │  DATA          (internal)  microservices ←─→ databases + broker          │
 #  └──────────────────────────────────────────────────────────────────────────┘
 #
-#  Rules:
-#   • Frontend has NO route to microservices or databases — only to api-gateway.
-#   • Databases are NOT reachable from the host (no host port bindings).
-#   • Internal microservices are NOT reachable from the host.
-#   • Only the DMZ zone (frontend:3000, api-gateway:8080) is host-accessible.
+#  Rules enforced by the topology below:
+#   • Only rp-web (host :8080) and rp-mobile (host :8081) are reachable from
+#     the host.  Everything else has no port bindings.
+#   • Browsers can ONLY reach rp-web.  Mobile clients can ONLY reach rp-mobile.
+#   • The frontend (SSR) and api-gateway are PRIVATE — clients never see them.
+#   • Each microservice can only reach the databases it owns.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 networks:
 
-  # Zone 1 – DMZ: public-facing entry points only
-  dmz:
+  # Zone 1 – EDGE: only zone exposed to the host (via the two reverse proxies)
+  edge:
     driver: bridge
-    name: uniwheels-dmz
+    name: uniwheels-edge
 
-  # Zone 2 – Services: business-logic layer, isolated from host
+  # Zone 2 – WEB-ZONE: rp-web ↔ Next.js SSR (private)
+  web-zone:
+    driver: bridge
+    name: uniwheels-web-zone
+    internal: true
+
+  # Zone 3 – GATEWAY-ZONE: rp-mobile + SSR ↔ api-gateway (private)
+  gateway-zone:
+    driver: bridge
+    name: uniwheels-gateway-zone
+    internal: true
+
+  # Zone 4 – SERVICES: api-gateway ↔ microservices (private)
   services:
     driver: bridge
     name: uniwheels-services
     internal: true
 
-  # Zone 3 – Data: persistence layer, no external access
+  # Zone 5 – DATA: microservices ↔ databases + broker (private)
   data:
     driver: bridge
     name: uniwheels-data
@@ -164,7 +181,7 @@ services:
       ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
       DEBUG:                       ${AUTH_DEBUG:-False}
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
-    # No host port – reachable only within the services network (via api-gateway)
+    # No host port – reachable only via api-gateway on the services network
     networks:
       - services
       - data
@@ -195,7 +212,7 @@ services:
       PORT:              3001
       MONGODB_URI:       mongodb://mongo-chat:27017/uniwheels_chat
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
-      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:3000}
+      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:8080}
       API_GATEWAY_URL:   http://api-gateway:8080
       RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
     # No host port – reachable only via api-gateway on the services network
@@ -232,7 +249,7 @@ services:
       MONGODB_URI:       mongodb://mongo-notifications:27017/uniwheels_notifications
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
       RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
-      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:3000}
+      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:8080}
     # No host port – reachable only via api-gateway on the services network
     networks:
       - services
@@ -310,7 +327,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────────────────────
-  #  API GATEWAY  →  bridge between DMZ and SERVICES zones
+  #  API GATEWAY  →  GATEWAY-ZONE + SERVICES (private — no host port)
   # ─────────────────────────────────────────────────────────────────────────────
 
   api-gateway:
@@ -327,11 +344,11 @@ services:
       NOTIFICATIONS_SERVICE_URL: http://notifications-service:3002
       SEARCH_SERVICE_URL:        http://route-search-service:6000
       COOKIE_MAX_AGE:            ${COOKIE_MAX_AGE:-1800}
-      FRONTEND_URL:              ${FRONTEND_URL:-http://localhost:3000}
-    ports:
-      - "8080:8080"
+      FRONTEND_URL:              ${FRONTEND_URL:-http://localhost:8080}
+    # No host port – reachable only via rp-mobile (mobile) or SSR (web), both
+    # connected to the gateway-zone network.
     networks:
-      - dmz
+      - gateway-zone
       - services
     depends_on:
       loggueo-service:
@@ -357,7 +374,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────────────────────
-  #  FRONTEND  →  DMZ zone only
+  #  FRONTEND (Next.js SSR)  →  WEB-ZONE + GATEWAY-ZONE (private — no host port)
   # ─────────────────────────────────────────────────────────────────────────────
 
   frontend:
@@ -365,15 +382,21 @@ services:
       context: .
       dockerfile: dockerfile
       args:
+        # Public URL of the rp-web reverse proxy (what the browser sees).
+        # The browser hits http://localhost:8080/ → rp-web → frontend SSR.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        # Internal URL the SSR rewrites use to reach the API Gateway.
+        # MUST be a build arg because next.config.ts evaluates rewrites() at build time.
+        INTERNAL_GATEWAY_URL: http://api-gateway:8080
     container_name: web-app
     environment:
       PORT:     3000
       HOSTNAME: 0.0.0.0
-    ports:
-      - "3000:3000"
+      INTERNAL_GATEWAY_URL: http://api-gateway:8080
+    # No host port – reachable only via rp-web on the web-zone network.
     networks:
-      - dmz
+      - web-zone
+      - gateway-zone
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -389,6 +412,57 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  REVERSE PROXIES  →  EDGE zone (the only public components)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  rp-web:
+    image: nginx:1.27-alpine
+    container_name: rp-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ../security/reverse-proxies/rp-web/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - edge
+      - web-zone
+      # gateway-zone needed for WebSocket bypass (Socket.io chat/notifications)
+      # which goes from rp-web direct to api-gateway, skipping Next.js SSR.
+      - gateway-zone
+    depends_on:
+      frontend:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  rp-mobile:
+    image: nginx:1.27-alpine
+    container_name: rp-mobile
+    ports:
+      - "8081:80"
+    volumes:
+      - ../security/reverse-proxies/rp-mobile/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - edge
+      - gateway-zone
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
 volumes:

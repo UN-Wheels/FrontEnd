@@ -7,6 +7,12 @@ WORKDIR /app
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# URL interna del API Gateway via la red Docker.  Next.js evalua rewrites()
+# en build time, asi que esta variable DEBE ser un ARG (no solo un ENV en runtime)
+# para que los rewrites server-side queden horneados apuntando al gateway privado.
+ARG INTERNAL_GATEWAY_URL=http://api-gateway:8080
+ENV INTERNAL_GATEWAY_URL=$INTERNAL_GATEWAY_URL
+
 COPY package*.json ./
 RUN npm ci
 
