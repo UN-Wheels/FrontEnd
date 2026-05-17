@@ -335,6 +335,68 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+<<<<<<< Updated upstream
+=======
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  REVERSE PROXIES  →  EDGE zone (the only public components)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  rp-web:
+    image: nginx:1.27-alpine
+    container_name: rp-web
+    ports:
+      - "8080:80"    # HTTP  → redirects to HTTPS (Secure Channel Pattern)
+      - "8443:443"   # HTTPS → TLS termination here (Secure Channel Pattern)
+    volumes:
+      - ../security/reverse-proxies/rp-web/nginx.conf:/etc/nginx/nginx.conf:ro
+      # TLS certificate and private key (generate with security/certs/gen-certs.sh)
+      - ../security/certs/server.crt:/etc/nginx/certs/server.crt:ro
+      - ../security/certs/server.key:/etc/nginx/certs/server.key:ro
+    networks:
+      - edge
+      - web-zone
+      # gateway-zone needed for WebSocket bypass (Socket.io chat/notifications)
+      # which goes from rp-web direct to api-gateway, skipping Next.js SSR.
+      - gateway-zone
+    depends_on:
+      frontend:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  rp-mobile:
+    image: nginx:1.27-alpine
+    container_name: rp-mobile
+    ports:
+      - "8081:80"    # HTTP  → redirects to HTTPS (Secure Channel Pattern)
+      - "8444:443"   # HTTPS → TLS termination here (Secure Channel Pattern)
+    volumes:
+      - ../security/reverse-proxies/rp-mobile/nginx.conf:/etc/nginx/nginx.conf:ro
+      # TLS certificate and private key (generate with security/certs/gen-certs.sh)
+      - ../security/certs/server.crt:/etc/nginx/certs/server.crt:ro
+      - ../security/certs/server.key:/etc/nginx/certs/server.key:ro
+    networks:
+      - edge
+      - gateway-zone
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+>>>>>>> Stashed changes
 volumes:
   postgres_data:
   mongo_chat_data:
