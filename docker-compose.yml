@@ -489,17 +489,16 @@ services:
       - "8080:8080"   # Web channel  → rp-web  (browser traffic)
       - "8081:8081"   # Mobile channel → rp-mobile (Flutter app traffic)
     volumes:
-      # Custom nginx server blocks (two upstreams: rp-web and rp-mobile)
+      # nginx server blocks: mounted as template so envsubst replaces ${PORT}
+      # and ${SERVER_NAME} correctly.  Nginx variables ($remote_addr etc.) are
+      # written with lowercase $var syntax which envsubst leaves untouched.
       - ../WAF/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
-      # ModSecurity include chain (preserves env-var-driven base config)
-      - ../WAF/modsecurity.conf:/etc/nginx/conf/modsecurity.conf:ro
-      # CRS setup — requires MANUAL_MODE=1 below
-      - ../WAF/crs-setup.conf:/etc/modsecurity.d/owasp-crs/crs-setup.conf:ro
-      # UN-Wheels domain exclusions
-      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
-      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+      # UN-Wheels CRS exclusion rules — picked up by the image's glob
+      # Include /opt/owasp-crs/rules/*.conf inside setup.conf.
+      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/opt/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
+      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/opt/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
     environment:
-      # ── ModSecurity engine ─────────────────────────────────────────────────
+      # ── ModSecurity engine (controls /etc/nginx/templates/modsecurity.d/modsecurity.conf.template) ──
       MODSEC_RULE_ENGINE:       "On"            # Blocking mode (NOT DetectionOnly)
       MODSEC_REQ_BODY_ACCESS:   "On"            # Inspect request bodies
       MODSEC_RESP_BODY_ACCESS:  "Off"           # Skip response body scan (performance)
