@@ -1,9 +1,68 @@
 name: uniwheels
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  NETWORK SEGMENTATION + WAF + REVERSE PROXY PATTERN
+#
+#  Six isolated zones — only the edge zone is reachable from the host.
+#
+#  ┌──────────────────────────────────────────────────────────────────────────┐
+#  │  EDGE      (public)  waf ─:8080──┐  waf ─:8081──┐                       │
+#  │  WAF-ZONE  (internal) waf ←─→ rp-web            waf ←─→ rp-mobile       │
+#  │  WEB-ZONE  (internal) rp-web ←─→ frontend (Next.js SSR)                 │
+#  │  GATEWAY   (internal) rp-web ←─→ api-gateway  rp-mobile ←─→ api-gateway │
+#  │  SERVICES  (internal) api-gateway ←─→ microservices                     │
+#  │  DATA      (internal) microservices ←─→ databases + broker               │
+#  └──────────────────────────────────────────────────────────────────────────┘
+#
+#  Rules enforced by the topology below:
+#   • ONLY the waf container has host port bindings (:8080 web, :8081 mobile).
+#   • rp-web and rp-mobile are internal — reachable only from the WAF.
+#   • The WAF inspects ALL traffic with ModSecurity + OWASP CRS (Paranoia 1).
+#   • The frontend (SSR) and api-gateway are PRIVATE — clients never see them.
+#   • Each microservice can only reach the databases it owns.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+networks:
+
+  # Zone 1 – EDGE: only zone exposed to the host (via the two reverse proxies)
+  edge:
+    driver: bridge
+    name: uniwheels-edge
+
+  # Zone 2 – WEB-ZONE: rp-web ↔ Next.js SSR (private)
+  web-zone:
+    driver: bridge
+    name: uniwheels-web-zone
+    internal: true
+
+  # Zone 3 – GATEWAY-ZONE: rp-mobile + SSR ↔ api-gateway (private)
+  gateway-zone:
+    driver: bridge
+    name: uniwheels-gateway-zone
+    internal: true
+
+  # Zone 4 – SERVICES: api-gateway ↔ microservices (private)
+  services:
+    driver: bridge
+    name: uniwheels-services
+    internal: true
+
+  # Zone 5 – DATA: microservices ↔ databases + broker (private)
+  data:
+    driver: bridge
+    name: uniwheels-data
+    internal: true
+
+  # Zone 6 – WAF-ZONE: waf ↔ rp-web + rp-mobile (private; replaces direct edge exposure)
+  waf-zone:
+    driver: bridge
+    name: uniwheels-waf-zone
+    internal: true
+
 services:
 
   # ─────────────────────────────────────────────────────────────────────────────
-  #  INFRAESTRUCTURA (bases de datos + broker)
+  #  INFRAESTRUCTURA (bases de datos + broker)  →  DATA zone only
   # ─────────────────────────────────────────────────────────────────────────────
 
   postgres:
@@ -13,10 +72,11 @@ services:
       POSTGRES_DB:       ${POSTGRES_DB:-loggeo_base_db}
       POSTGRES_USER:     ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    # No host port – reachable only within the data network
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-loggeo_base_db}"]
       interval: 10s
@@ -24,14 +84,14 @@ services:
       retries: 8
     restart: unless-stopped
 
-  # MongoDB por microservicio (host/instancia separados)
   mongo-chat:
     image: mongo:7
     container_name: chat-db
-    ports:
-      - "${MONGO_CHAT_PORT:-27017}:27017"
+    # No host port – reachable only within the data network
     volumes:
       - mongo_chat_data:/data/db
+    networks:
+      - data
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
       interval: 10s
@@ -43,10 +103,11 @@ services:
   mongo-notifications:
     image: mongo:7
     container_name: notifications-db
-    ports:
-      - "${MONGO_NOTIFICATIONS_PORT:-27018}:27017"
+    # No host port – reachable only within the data network
     volumes:
       - mongo_notifications_data:/data/db
+    networks:
+      - data
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
       interval: 10s
@@ -58,10 +119,11 @@ services:
   mongo-routes:
     image: mongo:7
     container_name: routes-db
-    ports:
-      - "${MONGO_ROUTES_PORT:-27019}:27017"
+    # No host port – reachable only within the data network
     volumes:
       - mongo_routes_data:/data/db
+    networks:
+      - data
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
       interval: 10s
@@ -70,7 +132,6 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # PostgreSQL + PostGIS (microservicio de búsquedas)
   search-postgres:
     image: postgis/postgis:16-3.4-alpine
     container_name: route-search-postgres
@@ -78,10 +139,11 @@ services:
       POSTGRES_DB:       routesearch
       POSTGRES_USER:     postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5433:5432" # expuesto en 5433 para evitar choque con el postgres de auth
+    # No host port – reachable only within the data network
     volumes:
       - route_search_pgdata:/var/lib/postgresql/data
+    networks:
+      - data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -95,21 +157,21 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+    # No host ports – broker is internal; management UI not exposed to host
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - data
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 15s
       timeout: 10s
-      retries: 8
-      start_period: 30s
+      retries: 10
+      start_period: 60s
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────────────────────
-  #  MICROSERVICIOS DE NEGOCIO
+  #  MICROSERVICIOS DE NEGOCIO  →  SERVICES zone + DATA zone
   # ─────────────────────────────────────────────────────────────────────────────
 
   loggueo-service:
@@ -124,8 +186,10 @@ services:
       ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
       DEBUG:                       ${AUTH_DEBUG:-False}
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
-    ports:
-      - "8000:8000"
+    # No host port – reachable only via api-gateway on the services network
+    networks:
+      - services
+      - data
     depends_on:
       postgres:
         condition: service_healthy
@@ -153,11 +217,13 @@ services:
       PORT:              3001
       MONGODB_URI:       mongodb://mongo-chat:27017/uniwheels_chat
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
-      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:3000}
+      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:8080}
       API_GATEWAY_URL:   http://api-gateway:8080
       RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
-    ports:
-      - "3001:3001"
+    # No host port – reachable only via api-gateway on the services network
+    networks:
+      - services
+      - data
     depends_on:
       mongo-chat:
         condition: service_healthy
@@ -188,9 +254,11 @@ services:
       MONGODB_URI:       mongodb://mongo-notifications:27017/uniwheels_notifications
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
       RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
-      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:3000}
-    ports:
-      - "3002:3002"
+      CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:8080}
+    # No host port – reachable only via api-gateway on the services network
+    networks:
+      - services
+      - data
     depends_on:
       mongo-notifications:
         condition: service_healthy
@@ -220,8 +288,10 @@ services:
       MONGO_URI:    mongodb://mongo-routes:27017/routesdb
       JWT_SECRET:   ${JWT_SHARED_SECRET:-dev_secret_change_me}
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
-    ports:
-      - "4000:4000"
+    # No host port – reachable only via api-gateway on the services network
+    networks:
+      - services
+      - data
     depends_on:
       mongo-routes:
         condition: service_healthy
@@ -252,15 +322,25 @@ services:
       ROUTES_SERVICE_URL: http://routes-reservations-service:4000
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-60}
       JWT_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
-    ports:
-      - "6000:6000"
+    # No host port – reachable only via api-gateway on the services network
+    networks:
+      - services
+      - data
     depends_on:
       search-postgres:
         condition: service_healthy
+      routes-reservations-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:6000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────────────────────
-  #  API GATEWAY
+  #  API GATEWAY  →  GATEWAY-ZONE + SERVICES (private — no host port)
   # ─────────────────────────────────────────────────────────────────────────────
 
   api-gateway:
@@ -275,10 +355,14 @@ services:
       CHAT_SERVICE_URL:          http://chat-service:3001
       ROUTES_SERVICE_URL:        http://routes-reservations-service:4000
       NOTIFICATIONS_SERVICE_URL: http://notifications-service:3002
+      SEARCH_SERVICE_URL:        http://route-search-service:6000
       COOKIE_MAX_AGE:            ${COOKIE_MAX_AGE:-1800}
-      FRONTEND_URL:              ${FRONTEND_URL:-http://localhost:3000}
-    ports:
-      - "8080:8080"
+      FRONTEND_URL:              ${FRONTEND_URL:-http://localhost:8080}
+    # No host port – reachable only via rp-mobile (mobile) or SSR (web), both
+    # connected to the gateway-zone network.
+    networks:
+      - gateway-zone
+      - services
     depends_on:
       loggueo-service:
         condition: service_healthy
@@ -303,7 +387,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────────────────────
-  #  FRONTEND (Next.js — output: standalone)
+  #  FRONTEND (Next.js SSR)  →  WEB-ZONE + GATEWAY-ZONE (private — no host port)
   # ─────────────────────────────────────────────────────────────────────────────
 
   frontend:
@@ -311,13 +395,21 @@ services:
       context: .
       dockerfile: dockerfile
       args:
+        # Public URL of the rp-web reverse proxy (what the browser sees).
+        # The browser hits http://localhost:8080/ → rp-web → frontend SSR.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        # Internal URL the SSR rewrites use to reach the API Gateway.
+        # MUST be a build arg because next.config.ts evaluates rewrites() at build time.
+        INTERNAL_GATEWAY_URL: http://api-gateway:8080
     container_name: web-app
     environment:
       PORT:     3000
       HOSTNAME: 0.0.0.0
-    ports:
-      - "3000:3000"
+      INTERNAL_GATEWAY_URL: http://api-gateway:8080
+    # No host port – reachable only via rp-web on the web-zone network.
+    networks:
+      - web-zone
+      - gateway-zone
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -335,8 +427,6 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-<<<<<<< Updated upstream
-=======
   # ─────────────────────────────────────────────────────────────────────────────
   #  REVERSE PROXIES  →  EDGE zone (the only public components)
   # ─────────────────────────────────────────────────────────────────────────────
@@ -344,17 +434,12 @@ services:
   rp-web:
     image: nginx:1.27-alpine
     container_name: rp-web
-    ports:
-      - "8080:80"    # HTTP  → redirects to HTTPS (Secure Channel Pattern)
-      - "8443:443"   # HTTPS → TLS termination here (Secure Channel Pattern)
+    # No host ports — rp-web is now internal, reachable only from the WAF
     volumes:
       - ../security/reverse-proxies/rp-web/nginx.conf:/etc/nginx/nginx.conf:ro
-      # TLS certificate and private key (generate with security/certs/gen-certs.sh)
-      - ../security/certs/server.crt:/etc/nginx/certs/server.crt:ro
-      - ../security/certs/server.key:/etc/nginx/certs/server.key:ro
     networks:
-      - edge
-      - web-zone
+      - waf-zone   # WAF → rp-web
+      - web-zone   # rp-web → frontend SSR
       # gateway-zone needed for WebSocket bypass (Socket.io chat/notifications)
       # which goes from rp-web direct to api-gateway, skipping Next.js SSR.
       - gateway-zone
@@ -374,17 +459,12 @@ services:
   rp-mobile:
     image: nginx:1.27-alpine
     container_name: rp-mobile
-    ports:
-      - "8081:80"    # HTTP  → redirects to HTTPS (Secure Channel Pattern)
-      - "8444:443"   # HTTPS → TLS termination here (Secure Channel Pattern)
+    # No host ports — rp-mobile is now internal, reachable only from the WAF
     volumes:
       - ../security/reverse-proxies/rp-mobile/nginx.conf:/etc/nginx/nginx.conf:ro
-      # TLS certificate and private key (generate with security/certs/gen-certs.sh)
-      - ../security/certs/server.crt:/etc/nginx/certs/server.crt:ro
-      - ../security/certs/server.key:/etc/nginx/certs/server.key:ro
     networks:
-      - edge
-      - gateway-zone
+      - waf-zone     # WAF → rp-mobile
+      - gateway-zone # rp-mobile → api-gateway
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -396,7 +476,70 @@ services:
       start_period: 10s
     restart: unless-stopped
 
->>>>>>> Stashed changes
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  WAF (ModSecurity + OWASP CRS)  →  EDGE zone (public) + WAF-ZONE (private)
+  #  The ONLY component with host port bindings after this change.
+  #  Inspects all inbound traffic before it reaches rp-web or rp-mobile.
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  waf:
+    image: owasp/modsecurity-crs:nginx
+    container_name: waf
+    ports:
+      - "8080:8080"   # Web channel  → rp-web  (browser traffic)
+      - "8081:8081"   # Mobile channel → rp-mobile (Flutter app traffic)
+    volumes:
+      # nginx server blocks: mounted as template so envsubst replaces ${PORT}
+      # and ${SERVER_NAME} correctly.  Nginx variables ($remote_addr etc.) are
+      # written with lowercase $var syntax which envsubst leaves untouched.
+      - ../WAF/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
+      # UN-Wheels CRS exclusion rules — picked up by the image's glob
+      # Include /opt/owasp-crs/rules/*.conf inside setup.conf.
+      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/opt/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
+      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/opt/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+    environment:
+      # ── ModSecurity engine (controls /etc/nginx/templates/modsecurity.d/modsecurity.conf.template) ──
+      MODSEC_RULE_ENGINE:       "On"            # Blocking mode (NOT DetectionOnly)
+      MODSEC_REQ_BODY_ACCESS:   "On"            # Inspect request bodies
+      MODSEC_RESP_BODY_ACCESS:  "Off"           # Skip response body scan (performance)
+      MODSEC_REQ_BODY_LIMIT:    "10485760"      # 10 MB — allows avatar uploads
+      MODSEC_AUDIT_ENGINE:      "RelevantOnly"  # Log only blocked/flagged requests
+      MODSEC_AUDIT_LOG_FORMAT:  "JSON"          # Structured audit log
+      MODSEC_AUDIT_LOG:         "/dev/stdout"   # Stream to Docker logs
+      # ── CRS tuning (reflected in auto-generated modsecurity.conf) ──────────
+      # NOTE: BLOCKING_PARANOIA / DETECTION_PARANOIA are overridden by our
+      # crs-setup.conf (MANUAL_MODE=1).  Listed here for documentation only.
+      BLOCKING_PARANOIA:        "1"
+      DETECTION_PARANOIA:       "1"
+      ANOMALY_INBOUND:          "5"
+      ANOMALY_OUTBOUND:         "4"
+      # ── Manual CRS setup (we provide crs-setup.conf via volume) ────────────
+      MANUAL_MODE:              "1"
+      # ── Allowed content (belt-and-suspenders alongside crs-setup.conf) ─────
+      ALLOWED_METHODS:          "GET HEAD POST PUT PATCH DELETE OPTIONS"
+      ALLOWED_REQUEST_CONTENT_TYPE: "application/json|application/x-www-form-urlencoded|multipart/form-data|multipart/related|text/plain"
+      # ── Nginx tuning ────────────────────────────────────────────────────────
+      PORT:                     "8080"          # Primary listen port (web channel)
+      SERVER_TOKENS:            "off"
+      # Real-IP passthrough: trust the WAF's own address as source of X-Forwarded-For
+      SET_REAL_IP_FROM:         "172.16.0.0/12" # Docker bridge subnet range
+      REAL_IP_HEADER:           "X-Forwarded-For"
+    networks:
+      - edge      # Public: receives host traffic on :8080 and :8081
+      - waf-zone  # Private: forwards to rp-web and rp-mobile
+    depends_on:
+      rp-web:
+        condition: service_healthy
+      rp-mobile:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   mongo_chat_data:
