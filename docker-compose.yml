@@ -435,8 +435,8 @@ services:
       # Server blocks (http-level): upstream, map, rate limits, server{}
       - ../security/reverse-proxies/rp-web/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
       # CRS exclusion rules compartidas con el WAF anterior
-      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/opt/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
-      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/opt/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
+      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
     environment:
       # ── ModSecurity engine ────────────────────────────────────────────────────
       MODSEC_RULE_ENGINE:       "On"           # Modo bloqueo (no solo detección)
@@ -485,8 +485,8 @@ services:
       # Server blocks (http-level): upstream, map, rate limits, server{}
       - ../security/reverse-proxies/rp-mobile/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
       # CRS exclusion rules compartidas
-      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/opt/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
-      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/opt/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
+      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
     environment:
       # ── ModSecurity engine ────────────────────────────────────────────────────
       MODSEC_RULE_ENGINE:       "On"
