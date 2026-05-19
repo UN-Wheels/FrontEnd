@@ -430,10 +430,14 @@ services:
     image: owasp/modsecurity-crs:nginx
     container_name: rp-web
     ports:
-      - "8080:80"   # Tráfico web (browser) → frontend SSR
+      - "8080:443"  # Tráfico HTTPS (TLS terminación) → frontend SSR
+      # :80 NO se expone al host — sólo se usa internamente para el healthcheck
+      # y para redirigir 301 → HTTPS si alguien dentro de la red probara HTTP.
     volumes:
       # Server blocks (http-level): upstream, map, rate limits, server{}
       - ../security/reverse-proxies/rp-web/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
+      # Certificados TLS generados con mkcert (CA local confiada por el OS host)
+      - ../security/reverse-proxies/certs:/etc/nginx/certs:ro
       # CRS exclusion rules compartidas con el WAF anterior
       - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
       - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
@@ -480,10 +484,13 @@ services:
     image: owasp/modsecurity-crs:nginx
     container_name: rp-mobile
     ports:
-      - "8081:80"   # Tráfico mobile (Flutter) → api-gateway
+      - "8081:443"  # Tráfico HTTPS (TLS terminación) → api-gateway
+      # :80 NO se expone — interno para healthcheck y redirect 301 → HTTPS.
     volumes:
       # Server blocks (http-level): upstream, map, rate limits, server{}
       - ../security/reverse-proxies/rp-mobile/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
+      # Certificados TLS generados con mkcert
+      - ../security/reverse-proxies/certs:/etc/nginx/certs:ro
       # CRS exclusion rules compartidas
       - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
       - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
