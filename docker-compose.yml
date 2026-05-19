@@ -1,13 +1,12 @@
 name: uniwheels
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  NETWORK SEGMENTATION + WAF + REVERSE PROXY PATTERN
+#  NETWORK SEGMENTATION + ModSecurity en Reverse Proxies  (Opción B)
 #
-#  Six isolated zones — only the edge zone is reachable from the host.
+#  Five isolated zones — only the edge zone is reachable from the host.
 #
 #  ┌──────────────────────────────────────────────────────────────────────────┐
-#  │  EDGE      (public)  waf ─:8080──┐  waf ─:8081──┐                       │
-#  │  WAF-ZONE  (internal) waf ←─→ rp-web            waf ←─→ rp-mobile       │
+#  │  EDGE      (public)   rp-web :8080──┐   rp-mobile :8081──┐              │
 #  │  WEB-ZONE  (internal) rp-web ←─→ frontend (Next.js SSR)                 │
 #  │  GATEWAY   (internal) rp-web ←─→ api-gateway  rp-mobile ←─→ api-gateway │
 #  │  SERVICES  (internal) api-gateway ←─→ microservices                     │
@@ -15,48 +14,42 @@ name: uniwheels
 #  └──────────────────────────────────────────────────────────────────────────┘
 #
 #  Rules enforced by the topology below:
-#   • ONLY the waf container has host port bindings (:8080 web, :8081 mobile).
-#   • rp-web and rp-mobile are internal — reachable only from the WAF.
-#   • The WAF inspects ALL traffic with ModSecurity + OWASP CRS (Paranoia 1).
-#   • The frontend (SSR) and api-gateway are PRIVATE — clients never see them.
-#   • Each microservice can only reach the databases it owns.
+#   • rp-web (:8080) y rp-mobile (:8081) son los ÚNICOS con host port bindings.
+#   • Cada RP embebe ModSecurity + OWASP CRS (Paranoia 1): WAF en el edge.
+#   • Rate limiting diferenciado por canal (web vs mobile) y por endpoint.
+#   • frontend y api-gateway son PRIVADOS — los clientes nunca los ven directamente.
+#   • Cada microservicio solo alcanza las bases de datos que le pertenecen.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 networks:
 
-  # Zone 1 – EDGE: only zone exposed to the host (via the two reverse proxies)
+  # Zone 1 – EDGE: única zona con acceso al host (rp-web :8080, rp-mobile :8081)
   edge:
     driver: bridge
     name: uniwheels-edge
 
-  # Zone 2 – WEB-ZONE: rp-web ↔ Next.js SSR (private)
+  # Zone 2 – WEB-ZONE: rp-web ↔ Next.js SSR (privada)
   web-zone:
     driver: bridge
     name: uniwheels-web-zone
     internal: true
 
-  # Zone 3 – GATEWAY-ZONE: rp-mobile + SSR ↔ api-gateway (private)
+  # Zone 3 – GATEWAY-ZONE: rp-web + rp-mobile + SSR ↔ api-gateway (privada)
   gateway-zone:
     driver: bridge
     name: uniwheels-gateway-zone
     internal: true
 
-  # Zone 4 – SERVICES: api-gateway ↔ microservices (private)
+  # Zone 4 – SERVICES: api-gateway ↔ microservices (privada)
   services:
     driver: bridge
     name: uniwheels-services
     internal: true
 
-  # Zone 5 – DATA: microservices ↔ databases + broker (private)
+  # Zone 5 – DATA: microservices ↔ databases + broker (privada)
   data:
     driver: bridge
     name: uniwheels-data
-    internal: true
-
-  # Zone 6 – WAF-ZONE: waf ↔ rp-web + rp-mobile (private; replaces direct edge exposure)
-  waf-zone:
-    driver: bridge
-    name: uniwheels-waf-zone
     internal: true
 
 services:
@@ -358,8 +351,7 @@ services:
       SEARCH_SERVICE_URL:        http://route-search-service:6000
       COOKIE_MAX_AGE:            ${COOKIE_MAX_AGE:-1800}
       FRONTEND_URL:              ${FRONTEND_URL:-http://localhost:8080}
-    # No host port – reachable only via rp-mobile (mobile) or SSR (web), both
-    # connected to the gateway-zone network.
+    # No host port – reachable only via rp-mobile (mobile) or SSR rewrites (web)
     networks:
       - gateway-zone
       - services
@@ -395,10 +387,9 @@ services:
       context: .
       dockerfile: dockerfile
       args:
-        # Public URL of the rp-web reverse proxy (what the browser sees).
-        # The browser hits http://localhost:8080/ → rp-web → frontend SSR.
+        # Public URL of rp-web (what the browser sees).
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
-        # Internal URL the SSR rewrites use to reach the API Gateway.
+        # Internal URL for SSR rewrites to reach the API Gateway.
         # MUST be a build arg because next.config.ts evaluates rewrites() at build time.
         INTERNAL_GATEWAY_URL: http://api-gateway:8080
     container_name: web-app
@@ -428,21 +419,50 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────────────────────
-  #  REVERSE PROXIES  →  EDGE zone (the only public components)
+  #  REVERSE PROXIES con ModSecurity embebido  →  EDGE zone (únicos componentes
+  #  públicos). Cada RP usa la imagen owasp/modsecurity-crs:nginx que incluye
+  #  Nginx + ModSecurity + OWASP CRS compilados.  El nginx.conf de cada RP se
+  #  monta en conf.d/ — el bloque http{} y la activación de ModSecurity los
+  #  provee la imagen base; conf.d/ contiene los upstream, map, limit_req y server.
   # ─────────────────────────────────────────────────────────────────────────────
 
   rp-web:
-    image: nginx:1.27-alpine
+    image: owasp/modsecurity-crs:nginx
     container_name: rp-web
-    # No host ports — rp-web is now internal, reachable only from the WAF
+    ports:
+      - "8080:80"   # Tráfico web (browser) → frontend SSR
     volumes:
-      - ../security/reverse-proxies/rp-web/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Server blocks (http-level): upstream, map, rate limits, server{}
+      - ../security/reverse-proxies/rp-web/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
+      # CRS exclusion rules compartidas con el WAF anterior
+      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/opt/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
+      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/opt/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+    environment:
+      # ── ModSecurity engine ────────────────────────────────────────────────────
+      MODSEC_RULE_ENGINE:       "On"           # Modo bloqueo (no solo detección)
+      MODSEC_REQ_BODY_ACCESS:   "On"           # Inspeccionar cuerpos de request
+      MODSEC_RESP_BODY_ACCESS:  "Off"          # No escanear respuestas (performance)
+      MODSEC_REQ_BODY_LIMIT:    "10485760"     # 10 MB — permite subida de avatares
+      MODSEC_AUDIT_ENGINE:      "RelevantOnly" # Log solo peticiones bloqueadas/marcadas
+      MODSEC_AUDIT_LOG_FORMAT:  "JSON"         # Log estructurado
+      MODSEC_AUDIT_LOG:         "/dev/stdout"  # Stream a Docker logs
+      # ── OWASP CRS tuning ─────────────────────────────────────────────────────
+      BLOCKING_PARANOIA:        "1"
+      DETECTION_PARANOIA:       "1"
+      ANOMALY_INBOUND:          "5"
+      ANOMALY_OUTBOUND:         "4"
+      MANUAL_MODE:              "1"            # Usa crs-setup.conf de la imagen
+      # ── Métodos y tipos de contenido permitidos ───────────────────────────────
+      ALLOWED_METHODS:          "GET HEAD POST PUT PATCH DELETE OPTIONS"
+      ALLOWED_REQUEST_CONTENT_TYPE: "application/json|application/x-www-form-urlencoded|multipart/form-data|multipart/related|text/plain"
+      # ── Real-IP (la IP del cliente llega directo, no hay proxy previo) ────────
+      SET_REAL_IP_FROM:         "172.16.0.0/12"
+      REAL_IP_HEADER:           "X-Forwarded-For"
+      SERVER_TOKENS:            "off"
     networks:
-      - waf-zone   # WAF → rp-web
-      - web-zone   # rp-web → frontend SSR
-      # gateway-zone needed for WebSocket bypass (Socket.io chat/notifications)
-      # which goes from rp-web direct to api-gateway, skipping Next.js SSR.
-      - gateway-zone
+      - edge         # Público: recibe tráfico del host en :8080
+      - web-zone     # rp-web → frontend SSR
+      - gateway-zone # rp-web → api-gateway (bypass WebSocket de Socket.io)
     depends_on:
       frontend:
         condition: service_healthy
@@ -453,87 +473,50 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     restart: unless-stopped
 
   rp-mobile:
-    image: nginx:1.27-alpine
+    image: owasp/modsecurity-crs:nginx
     container_name: rp-mobile
-    # No host ports — rp-mobile is now internal, reachable only from the WAF
+    ports:
+      - "8081:80"   # Tráfico mobile (Flutter) → api-gateway
     volumes:
-      - ../security/reverse-proxies/rp-mobile/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Server blocks (http-level): upstream, map, rate limits, server{}
+      - ../security/reverse-proxies/rp-mobile/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
+      # CRS exclusion rules compartidas
+      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/opt/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
+      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/opt/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+    environment:
+      # ── ModSecurity engine ────────────────────────────────────────────────────
+      MODSEC_RULE_ENGINE:       "On"
+      MODSEC_REQ_BODY_ACCESS:   "On"
+      MODSEC_RESP_BODY_ACCESS:  "Off"
+      MODSEC_REQ_BODY_LIMIT:    "5242880"      # 5 MB — mobile es API pura, no archivos
+      MODSEC_AUDIT_ENGINE:      "RelevantOnly"
+      MODSEC_AUDIT_LOG_FORMAT:  "JSON"
+      MODSEC_AUDIT_LOG:         "/dev/stdout"
+      # ── OWASP CRS tuning ─────────────────────────────────────────────────────
+      BLOCKING_PARANOIA:        "1"
+      DETECTION_PARANOIA:       "1"
+      ANOMALY_INBOUND:          "5"
+      ANOMALY_OUTBOUND:         "4"
+      MANUAL_MODE:              "1"
+      # ── Mobile es JSON-only: Content-Type más estricto ────────────────────────
+      ALLOWED_METHODS:          "GET HEAD POST PUT PATCH DELETE OPTIONS"
+      ALLOWED_REQUEST_CONTENT_TYPE: "application/json"
+      # ── Real-IP ───────────────────────────────────────────────────────────────
+      SET_REAL_IP_FROM:         "172.16.0.0/12"
+      REAL_IP_HEADER:           "X-Forwarded-For"
+      SERVER_TOKENS:            "off"
     networks:
-      - waf-zone     # WAF → rp-mobile
+      - edge         # Público: recibe tráfico del host en :8081
       - gateway-zone # rp-mobile → api-gateway
     depends_on:
       api-gateway:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  #  WAF (ModSecurity + OWASP CRS)  →  EDGE zone (public) + WAF-ZONE (private)
-  #  The ONLY component with host port bindings after this change.
-  #  Inspects all inbound traffic before it reaches rp-web or rp-mobile.
-  # ─────────────────────────────────────────────────────────────────────────────
-
-  waf:
-    image: owasp/modsecurity-crs:nginx
-    container_name: waf
-    ports:
-      - "8080:8080"   # Web channel  → rp-web  (browser traffic)
-      - "8081:8081"   # Mobile channel → rp-mobile (Flutter app traffic)
-    volumes:
-      # nginx server blocks: mounted as template so envsubst replaces ${PORT}
-      # and ${SERVER_NAME} correctly.  Nginx variables ($remote_addr etc.) are
-      # written with lowercase $var syntax which envsubst leaves untouched.
-      - ../WAF/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
-      # UN-Wheels CRS exclusion rules — picked up by the image's glob
-      # Include /opt/owasp-crs/rules/*.conf inside setup.conf.
-      - ../WAF/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/opt/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
-      - ../WAF/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/opt/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
-    environment:
-      # ── ModSecurity engine (controls /etc/nginx/templates/modsecurity.d/modsecurity.conf.template) ──
-      MODSEC_RULE_ENGINE:       "On"            # Blocking mode (NOT DetectionOnly)
-      MODSEC_REQ_BODY_ACCESS:   "On"            # Inspect request bodies
-      MODSEC_RESP_BODY_ACCESS:  "Off"           # Skip response body scan (performance)
-      MODSEC_REQ_BODY_LIMIT:    "10485760"      # 10 MB — allows avatar uploads
-      MODSEC_AUDIT_ENGINE:      "RelevantOnly"  # Log only blocked/flagged requests
-      MODSEC_AUDIT_LOG_FORMAT:  "JSON"          # Structured audit log
-      MODSEC_AUDIT_LOG:         "/dev/stdout"   # Stream to Docker logs
-      # ── CRS tuning (reflected in auto-generated modsecurity.conf) ──────────
-      # NOTE: BLOCKING_PARANOIA / DETECTION_PARANOIA are overridden by our
-      # crs-setup.conf (MANUAL_MODE=1).  Listed here for documentation only.
-      BLOCKING_PARANOIA:        "1"
-      DETECTION_PARANOIA:       "1"
-      ANOMALY_INBOUND:          "5"
-      ANOMALY_OUTBOUND:         "4"
-      # ── Manual CRS setup (we provide crs-setup.conf via volume) ────────────
-      MANUAL_MODE:              "1"
-      # ── Allowed content (belt-and-suspenders alongside crs-setup.conf) ─────
-      ALLOWED_METHODS:          "GET HEAD POST PUT PATCH DELETE OPTIONS"
-      ALLOWED_REQUEST_CONTENT_TYPE: "application/json|application/x-www-form-urlencoded|multipart/form-data|multipart/related|text/plain"
-      # ── Nginx tuning ────────────────────────────────────────────────────────
-      PORT:                     "8080"          # Primary listen port (web channel)
-      SERVER_TOKENS:            "off"
-      # Real-IP passthrough: trust the WAF's own address as source of X-Forwarded-For
-      SET_REAL_IP_FROM:         "172.16.0.0/12" # Docker bridge subnet range
-      REAL_IP_HEADER:           "X-Forwarded-For"
-    networks:
-      - edge      # Public: receives host traffic on :8080 and :8081
-      - waf-zone  # Private: forwards to rp-web and rp-mobile
-    depends_on:
-      rp-web:
-        condition: service_healthy
-      rp-mobile:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 15s
       timeout: 5s
       retries: 5
