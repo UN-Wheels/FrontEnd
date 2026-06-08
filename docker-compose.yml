@@ -150,6 +150,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit heartbeat 60"
     # No host ports – broker is internal; management UI not exposed to host
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
@@ -212,7 +213,7 @@ services:
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
       CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:8080}
       API_GATEWAY_URL:   http://api-gateway:8080
-      RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
+      RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672?heartbeat=60
     # No host port – reachable only via api-gateway on the services network
     networks:
       - services
@@ -246,7 +247,7 @@ services:
       PORT:              3002
       MONGODB_URI:       mongodb://mongo-notifications:27017/uniwheels_notifications
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
-      RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672
+      RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672?heartbeat=60
       CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:8080}
     # No host port – reachable only via api-gateway on the services network
     networks:
@@ -280,7 +281,7 @@ services:
       PORT:         4000
       MONGO_URI:    mongodb://mongo-routes:27017/routesdb
       JWT_SECRET:   ${JWT_SHARED_SECRET:-dev_secret_change_me}
-      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
+      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672?heartbeat=60
     # No host port – reachable only via api-gateway on the services network
     networks:
       - services
@@ -325,7 +326,7 @@ services:
       routes-reservations-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1/healthz || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:6000/healthz || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -528,6 +529,38 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    restart: unless-stopped
+
+  healthmon:
+    image: node:18-alpine
+    container_name: health-monitor
+    working_dir: /app
+    command: node monitor.js
+    volumes:
+      - ./healthmon/monitor.js:/app/monitor.js:ro
+    environment:
+      CHECK_INTERVAL_MS: "15000"
+      FAIL_THRESHOLD: "3"
+      PORT: "9090"
+      SERVICES: |
+        loggueo-service=http://loggueo-service:8000/
+        chat-service=http://chat-service:3001/health
+        routes-service=http://routes-reservations-service:4000/health
+        notifications-service=http://notifications-service:3002/health
+        search-service=http://route-search-service:6000/healthz
+    networks:
+      - services
+    depends_on:
+      loggueo-service:
+        condition: service_healthy
+      chat-service:
+        condition: service_healthy
+      routes-reservations-service:
+        condition: service_healthy
+      notifications-service:
+        condition: service_healthy
+      search-service:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
