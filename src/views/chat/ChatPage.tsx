@@ -5,10 +5,12 @@ import {
   useRef,
   useLayoutEffect,
   useCallback,
+  useMemo,
 } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loading, EmptyState } from '../../components/ui';
-import { fmtTime } from '../../lib/format';
+import { fmtTime, shortAddr } from '../../lib/format';
+import { useRoutesByIds } from '../../hooks/queries';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import {
@@ -20,8 +22,6 @@ import {
   SocketMessageData,
   SocketMessageStatusData,
 } from '../../services/socketService';
-import { routesService } from '../../services/routesService';
-
 // ─── Íconos inline ────────────────────────────────────────────────────────────
 
 const SendIcon = () => (
@@ -73,6 +73,15 @@ function getRoleLabel(role?: 'driver' | 'passenger'): string {
   return role === 'driver' ? 'Conductor' : role === 'passenger' ? 'Pasajero' : '';
 }
 
+function getRouteLabel(
+  routeId: string,
+  routeMap: Map<string, { origin: { address: string }; destination: { address: string } }>,
+): string {
+  const route = routeMap.get(routeId);
+  if (!route) return 'Cargando ruta…';
+  return `${shortAddr(route.origin.address)} → ${shortAddr(route.destination.address)}`;
+}
+
 
 
 // ─── Tipos locales ─────────────────────────────────────────────────────────────
@@ -102,7 +111,6 @@ export function ChatPage() {
   const [selectedId, setSelectedId] = useState<string | null>(paramId ?? null);
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [input, setInput] = useState('');
-  const [routeLabel, setRouteLabel] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -117,6 +125,12 @@ export function ChatPage() {
   const isLoadingRef = useRef(false);
 
   const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
+
+  const routeIds = useMemo(
+    () => [...new Set(conversations.map((c) => c.routeId))],
+    [conversations],
+  );
+  const { map: routeMap } = useRoutesByIds(routeIds);
 
   // ── Cargar conversaciones ────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
@@ -268,7 +282,6 @@ export function ChatPage() {
         prevConvRef.current = null;
       }
       setMessages([]);
-      setRouteLabel('');
       return;
     }
 
@@ -310,18 +323,6 @@ export function ChatPage() {
           chatService.markAsRead(selectedId).catch(() => {});
         }
 
-        // Obtener info de la ruta para mostrar en header
-        const conv = conversations.find((c) => c.conversationId === selectedId);
-        if (conv?.routeId) {
-          routesService
-            .getRouteById(conv.routeId)
-            .then((r) => {
-              const orig = r.origin.address.split(',')[0];
-              const dest = r.destination.address.split(',')[0];
-              setRouteLabel(`${orig} → ${dest}`);
-            })
-            .catch(() => setRouteLabel(''));
-        }
       } catch (err) {
         console.error('Error cargando mensajes:', err);
       } finally {
@@ -449,15 +450,19 @@ export function ChatPage() {
     setSelectedId(null);
     setActiveConversationId(null);
     setMessages([]);
-    setRouteLabel('');
   };
 
   // ── Datos derivados ───────────────────────────────────────────────────────
   const filtered = conversations.filter((c) => {
+    const q = searchTerm.toLowerCase();
     const name = userNames.get(c.otherUserId) ?? c.otherUserId.split('@')[0];
+    const route = getRouteLabel(c.routeId, routeMap).toLowerCase();
+    const role = getRoleLabel(c.otherUserRole).toLowerCase();
     return (
-      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.otherUserId.toLowerCase().includes(searchTerm.toLowerCase())
+      name.toLowerCase().includes(q) ||
+      c.otherUserId.toLowerCase().includes(q) ||
+      route.includes(q) ||
+      role.includes(q)
     );
   });
 
@@ -518,9 +523,9 @@ export function ChatPage() {
           {filtered.map((conv) => {
             const isSelected = conv.conversationId === selectedId;
             const name = userNames.get(conv.otherUserId) ?? conv.otherUserId.split('@')[0];
-            const sub = conv.otherUserId;
+            const routeTitle = getRouteLabel(conv.routeId, routeMap);
             const time = conv.lastMessageAt ? fmtTime(conv.lastMessageAt) : '';
-            const avatarLetter = name[0]?.toUpperCase() ?? '?';
+            const avatarLetter = routeTitle[0]?.toUpperCase() ?? '?';
 
             return (
               <button
@@ -536,16 +541,11 @@ export function ChatPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900 truncate text-sm">{name}</p>
-                      {conv.otherUserRole && (
-                        <span className="text-xs text-gray-400 font-medium px-1.5 py-0.5 bg-gray-100 rounded">
-                          {getRoleLabel(conv.otherUserRole)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-gray-900 truncate text-sm leading-snug">
+                      {routeTitle}
+                    </p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {conv.unreadCount > 0 && (
                         <span className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center">
                           {conv.unreadCount}
@@ -556,9 +556,17 @@ export function ChatPage() {
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 truncate">{sub}</p>
+                  <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                    <p className="text-xs text-gray-600 truncate">{name}</p>
+                    {conv.otherUserRole && (
+                      <span className="text-[10px] text-gray-500 font-medium px-1.5 py-0.5 bg-gray-100 rounded flex-shrink-0">
+                        {getRoleLabel(conv.otherUserRole)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 truncate mt-0.5">{conv.otherUserId}</p>
                   {conv.lastMessageText && (
-                    <p className="text-sm text-gray-500 truncate mt-0.5">
+                    <p className="text-sm text-gray-500 truncate mt-1">
                       {conv.lastMessageText}
                     </p>
                   )}
@@ -592,25 +600,31 @@ export function ChatPage() {
                   ? (userNames.get(selectedConv.otherUserId) ?? selectedConv.otherUserId.split('@')[0])
                   : '?';
                 const headerRole = selectedConv ? getRoleLabel(selectedConv.otherUserRole) : '';
+                const headerRoute = selectedConv
+                  ? getRouteLabel(selectedConv.routeId, routeMap)
+                  : 'Chat';
                 return (
                   <>
                     <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
-                      {headerName[0]?.toUpperCase() ?? '?'}
+                      {headerRoute[0]?.toUpperCase() ?? '?'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900 text-sm">{selectedConv ? headerName : 'Chat'}</p>
-                        {headerRole && (
-                          <span className="text-xs text-gray-500 font-medium px-1.5 py-0.5 bg-gray-100 rounded">
-                            {headerRole}
-                          </span>
-                        )}
-                      </div>
-                      {routeLabel ? (
-                        <p className="text-xs text-gray-500 truncate">{routeLabel}</p>
-                      ) : selectedConv ? (
-                        <p className="text-xs text-gray-400 truncate">{selectedConv.otherUserId}</p>
-                      ) : null}
+                      <p className="font-semibold text-gray-900 text-sm truncate">{headerRoute}</p>
+                      {selectedConv && (
+                        <>
+                          <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                            <p className="text-xs text-gray-600 truncate">{headerName}</p>
+                            {headerRole && (
+                              <span className="text-[10px] text-gray-500 font-medium px-1.5 py-0.5 bg-gray-100 rounded flex-shrink-0">
+                                {headerRole}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400 truncate mt-0.5">
+                            {selectedConv.otherUserId}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </>
                 );

@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Button, Badge, Loading, Modal } from '../../components/ui';
 import { ApiReservation, ApiRoute } from '../../services/routesService';
 import { useAuth } from '../../context/AuthContext';
@@ -107,8 +108,13 @@ export function BookingsPage() {
         await rejectMutation.mutateAsync(actionModal.reservation.id);
       }
       setActionModal(null);
+      toast.success(
+        actionModal.type === 'accept' ? 'Solicitud aceptada' : 'Solicitud rechazada',
+      );
     } catch (err) {
-      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : 'No se pudo procesar la solicitud',
+      );
     }
   };
 
@@ -117,8 +123,11 @@ export function BookingsPage() {
     try {
       await deleteMutation.mutateAsync(deleteModal.id);
       setDeleteModal(null);
+      toast.success('Ruta eliminada');
     } catch (err) {
-      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : 'No se pudo eliminar la ruta',
+      );
     }
   };
 
