@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, Button, Input, Loading, EmptyState } from '../../components/ui';
 import { LocationPicker } from '../../components/ui/LocationPicker';
@@ -18,7 +18,6 @@ export function SearchRoutesPage() {
   const [pages,     setPages]     = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isError,   setIsError]   = useState(false);
-  const [searched,  setSearched]  = useState(false);
 
   // ── Filtros ─────────────────────────────────────────────────────────────────
   const [originLoc,  setOriginLoc]  = useState<Location | null>(null);
@@ -65,7 +64,6 @@ export function SearchRoutesPage() {
       setTotal(res.total);
       setPage(res.page);
       setPages(res.pages);
-      setSearched(true);
     } catch {
       setIsError(true);
     } finally {
@@ -79,8 +77,14 @@ export function SearchRoutesPage() {
     setOriginLoc(null); setDestLoc(null);
     setOriginName('');  setDestName('');
     setDate('');        setTimeFrom(''); setTimeTo(''); setMaxPrice('');
-    setRadius('500');   setRoutes([]);   setSearched(false);
+    setRadius('500');
+    doSearch(1);
   };
+
+  // Mostrar todas las rutas activas al entrar (sin filtros obligatorios).
+  useEffect(() => {
+    doSearch(1);
+  }, [doSearch]);
 
   const hasFilters = !!(originLoc || destLoc || originName || destName ||
                         date || timeFrom || timeTo || maxPrice);
@@ -228,18 +232,6 @@ export function SearchRoutesPage() {
         <div className="text-center py-12">
           <p className="text-red-400 mb-4">No se pudieron cargar las rutas. Intenta de nuevo.</p>
           <Button variant="outline" onClick={() => doSearch(1)}>Reintentar</Button>
-        </div>
-
-      ) : !searched ? (
-        <div className="rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center py-16 px-4 text-center">
-          <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mb-4">
-            <svg className="w-7 h-7 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <p className="text-white font-medium">Usa los filtros para buscar rutas</p>
-          <p className="text-gray-400 text-sm mt-1">Por ubicación, fecha, hora o precio</p>
         </div>
 
       ) : routes.length === 0 ? (

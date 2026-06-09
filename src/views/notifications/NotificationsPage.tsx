@@ -1,4 +1,5 @@
 'use client';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loading } from '../../components/ui';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -95,6 +96,10 @@ export function NotificationsPage() {
     markAllRead,
     deleteNotification,
   } = useNotifications();
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const unread = notifications.filter(n => !n.read);
   const read   = notifications.filter(n => n.read);
