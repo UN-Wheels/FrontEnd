@@ -326,7 +326,7 @@ services:
       routes-reservations-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:6000/healthz || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:6000/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -458,7 +458,7 @@ services:
       ANOMALY_OUTBOUND:         "4"
       MANUAL_MODE:              "1"            # Usa crs-setup.conf de la imagen
       # ── Métodos y tipos de contenido permitidos ───────────────────────────────
-      ALLOWED_METHODS:          "GET HEAD POST PUT PATCH DELETE OPTIONS"
+      ALLOWED_METHODS:          "GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS"
       ALLOWED_REQUEST_CONTENT_TYPE: "application/json|application/x-www-form-urlencoded|multipart/form-data|multipart/related|text/plain"
       # ── Real-IP (la IP del cliente llega directo, no hay proxy previo) ────────
       SET_REAL_IP_FROM:         "172.16.0.0/12"
@@ -511,7 +511,7 @@ services:
       ANOMALY_OUTBOUND:         "4"
       MANUAL_MODE:              "1"
       # ── Mobile es JSON-only: Content-Type más estricto ────────────────────────
-      ALLOWED_METHODS:          "GET HEAD POST PUT PATCH DELETE OPTIONS"
+      ALLOWED_METHODS:          "GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS"
       ALLOWED_REQUEST_CONTENT_TYPE: "application/json"
       # ── Real-IP ───────────────────────────────────────────────────────────────
       SET_REAL_IP_FROM:         "172.16.0.0/12"
@@ -547,7 +547,7 @@ services:
         chat-service=http://chat-service:3001/health
         routes-service=http://routes-reservations-service:4000/health
         notifications-service=http://notifications-service:3002/health
-        search-service=http://route-search-service:6000/healthz
+        search-service=http://route-search-service:6000/health
     networks:
       - services
     depends_on:
