@@ -156,8 +156,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         await notificationsApi.deleteOne(id);
         setNotifications((prev) => prev.filter((n) => n._id !== id));
         if (target && !target.read) setUnreadCount((c) => Math.max(0, c - 1));
-      } catch {
-        // ignore
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : 'No se pudo eliminar la notificación',
+        );
       }
     },
     [notifications],
