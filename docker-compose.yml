@@ -52,6 +52,12 @@ networks:
     name: uniwheels-data
     internal: true
 
+  # Zone 6 – LOGGUEO-INTERNAL: réplicas del loggueo_service ↔ nginx load balancer (privada)
+  loggueo-internal:
+    driver: bridge
+    name: uniwheels-loggueo-internal
+    internal: true
+
 services:
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -61,6 +67,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: auth-db
+    command: postgres -c max_connections=500
     environment:
       POSTGRES_DB:       ${POSTGRES_DB:-loggeo_base_db}
       POSTGRES_USER:     ${POSTGRES_USER:-postgres}
@@ -168,11 +175,14 @@ services:
   #  MICROSERVICIOS DE NEGOCIO  →  SERVICES zone + DATA zone
   # ─────────────────────────────────────────────────────────────────────────────
 
-  loggueo-service:
+  # ── Réplicas del loggueo_service (Lab 7 – Escalabilidad horizontal) ─────────
+  # Las tres réplicas comparten la misma PostgreSQL (stateless a nivel de app).
+  # No exponen puertos al host ni a la zona services — solo el nginx las alcanza.
+  loggueo_1:
     build:
       context: ../loggueo_service
       dockerfile: Dockerfile
-    container_name: auth-service
+    container_name: loggueo_1
     environment:
       DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-loggeo_base_db}
       SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
@@ -180,9 +190,8 @@ services:
       ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
       DEBUG:                       ${AUTH_DEBUG:-False}
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
-    # No host port – reachable only via api-gateway on the services network
     networks:
-      - services
+      - loggueo-internal
       - data
     depends_on:
       postgres:
@@ -199,6 +208,101 @@ services:
       timeout: 5s
       retries: 5
       start_period: 25s
+    restart: unless-stopped
+
+  loggueo_2:
+    build:
+      context: ../loggueo_service
+      dockerfile: Dockerfile
+    container_name: loggueo_2
+    environment:
+      DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-loggeo_base_db}
+      SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
+      DEBUG:                       ${AUTH_DEBUG:-False}
+      ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
+    networks:
+      - loggueo-internal
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').getcode()==200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    restart: unless-stopped
+
+  loggueo_3:
+    build:
+      context: ../loggueo_service
+      dockerfile: Dockerfile
+    container_name: loggueo_3
+    environment:
+      DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-loggeo_base_db}
+      SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
+      DEBUG:                       ${AUTH_DEBUG:-False}
+      ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
+    networks:
+      - loggueo-internal
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').getcode()==200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    restart: unless-stopped
+
+  # ── Nginx load balancer para loggueo_service ─────────────────────────────
+  # Mantiene el nombre DNS "loggueo-service" para que el api-gateway no cambie.
+  # Escucha en :8000 (mismo puerto que la instancia única anterior).
+  # Para cambiar algoritmo: editar el volumen y correr:
+  #   docker compose up -d --no-deps loggueo-service
+  loggueo-service:
+    image: nginx:alpine
+    container_name: loggueo-lb
+    volumes:
+      # Cambiar esta línea para probar cada algoritmo:
+      # - ./nginx/loggueo-lb/nginx.least-conn.conf:/etc/nginx/nginx.conf:ro
+      # - ./nginx/loggueo-lb/nginx.ip-hash.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/loggueo-lb/nginx.round-robin.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - services        # api-gateway → nginx
+      - loggueo-internal # nginx → réplicas
+    depends_on:
+      loggueo_1:
+        condition: service_healthy
+      loggueo_2:
+        condition: service_healthy
+      loggueo_3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   chat-service:
