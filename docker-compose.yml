@@ -202,7 +202,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').getcode()==200 else 1)",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz').getcode()==200 else 1)",
         ]
       interval: 15s
       timeout: 5s
@@ -234,7 +234,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').getcode()==200 else 1)",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz').getcode()==200 else 1)",
         ]
       interval: 15s
       timeout: 5s
@@ -266,7 +266,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').getcode()==200 else 1)",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz').getcode()==200 else 1)",
         ]
       interval: 15s
       timeout: 5s
@@ -298,7 +298,7 @@ services:
       loggueo_3:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/healthz"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -676,13 +676,17 @@ services:
       FAIL_THRESHOLD: "3"
       PORT: "9090"
       SERVICES: |
-        loggueo-service=http://loggueo-service:8000/
+        loggueo-1=http://loggueo_1:8000/readyz
+        loggueo-2=http://loggueo_2:8000/readyz
+        loggueo-3=http://loggueo_3:8000/readyz
+        loggueo-lb=http://loggueo-service:8000/healthz
         chat-service=http://chat-service:3001/health
         routes-service=http://routes-reservations-service:4000/health
         notifications-service=http://notifications-service:3002/health
         search-service=http://route-search-service:6000/health
     networks:
       - services
+      - loggueo-internal
     depends_on:
       loggueo-service:
         condition: service_healthy
