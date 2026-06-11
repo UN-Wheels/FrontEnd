@@ -73,54 +73,6 @@ services:
   #  INFRAESTRUCTURA (bases de datos + broker)  →  DATA zone only
   # ─────────────────────────────────────────────────────────────────────────────
 
-  mongo-chat:
-    image: mongo:7
-    container_name: chat-db
-    # No host port – reachable only within the data network
-    volumes:
-      - mongo_chat_data:/data/db
-    networks:
-      - data
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 8
-      start_period: 10s
-    restart: unless-stopped
-
-  mongo-notifications:
-    image: mongo:7
-    container_name: notifications-db
-    # No host port – reachable only within the data network
-    volumes:
-      - mongo_notifications_data:/data/db
-    networks:
-      - data
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 8
-      start_period: 10s
-    restart: unless-stopped
-
-  mongo-routes:
-    image: mongo:7
-    container_name: routes-db
-    # No host port – reachable only within the data network
-    volumes:
-      - mongo_routes_data:/data/db
-    networks:
-      - data
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 8
-      start_period: 10s
-    restart: unless-stopped
-
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: event-broker
@@ -291,9 +243,8 @@ services:
     networks:
       - services
       - data
+      - egress
     depends_on:
-      mongo-chat:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
@@ -326,9 +277,8 @@ services:
     networks:
       - services
       - data
+      - egress
     depends_on:
-      mongo-notifications:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
@@ -359,9 +309,8 @@ services:
     networks:
       - services
       - data
+      - egress
     depends_on:
-      mongo-routes:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
@@ -668,7 +617,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  mongo_chat_data:
-  mongo_notifications_data:
-  mongo_routes_data:
   rabbitmq_data:
