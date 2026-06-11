@@ -46,7 +46,7 @@ networks:
     name: uniwheels-services
     internal: true
 
-  # Zone 5 – DATA: microservices ↔ databases + broker (privada)
+  # Zone 5 – BROKER & CACHE: microservices ↔ RabbitMQ + Redis (privada)
   data:
     driver: bridge
     name: uniwheels-data
@@ -58,48 +58,20 @@ networks:
     name: uniwheels-loggueo-internal
     internal: true
   
-  # Zone 7 – NEON-EGRESS: salida controlada hacia Neon (externo).
-  # Solo loggueo-service tiene acceso a esta red.
-  # No es internal — permite tráfico saliente a internet hacia Neon.
+  # Zone 7 – EGRESS: salida controlada hacia bases de datos cloud (Neon, Atlas).
+  # No es internal — permite tráfico saliente a internet.
   # No tiene host port binding — no es accesible desde el exterior.
-  neon-egress:
-    driver: bridge
-    name: uniwheels-neon-egress
-
-
-
-  # Zone 7 – EGRESS: outbound-only internet access for services that call external APIs
-  # (e.g. search-service → Neon). Not internal so DNS and TCP to public hosts work.
-  # No container in other zones joins this network, so inbound from the internet is blocked.
   egress:
     driver: bridge
     name: uniwheels-egress
+
+
 
 services:
 
   # ─────────────────────────────────────────────────────────────────────────────
   #  INFRAESTRUCTURA (bases de datos + broker)  →  DATA zone only
   # ─────────────────────────────────────────────────────────────────────────────
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: auth-db
-    command: postgres -c max_connections=500
-    environment:
-      POSTGRES_DB:       ${POSTGRES_DB:-loggeo_base_db}
-      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    # No host port – reachable only within the data network
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-loggeo_base_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 8
-    restart: unless-stopped
 
   mongo-chat:
     image: mongo:7
@@ -191,7 +163,7 @@ services:
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
     networks:
       - loggueo-internal
-      - neon-egress
+      - egress
       
     healthcheck:
       test:
@@ -222,7 +194,7 @@ services:
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
     networks:
       - loggueo-internal
-      - neon-egress
+      - egress
 
     healthcheck:
       test:
@@ -253,7 +225,7 @@ services:
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
     networks:
       - loggueo-internal
-      - neon-egress
+      - egress
       
     healthcheck:
       test:
@@ -434,7 +406,7 @@ services:
     container_name: route-search-service
     environment:
       PORT: 6000
-      DATABASE_URL: postgresql://neondb_owner:npg_pJL8qgkQv5fT@ep-holy-dream-app9fr6m.c-7.us-east-1.aws.neon.tech/routesearch?sslmode=require&channel_binding=require
+      DATABASE_URL: ${SEARCH_DB_URL}
       ROUTES_SERVICE_URL: http://routes-reservations-service:4000
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-60}
       JWT_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
@@ -696,7 +668,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
   mongo_chat_data:
   mongo_notifications_data:
   mongo_routes_data:
