@@ -224,7 +224,7 @@ services:
       dockerfile: Dockerfile
     container_name: loggueo_2
     environment:
-      DATABASE_URL:                ${NEON_AUTH_DB_URL2}
+      DATABASE_URL:                ${NEON_AUTH_DB_URL1}
       SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
@@ -254,7 +254,7 @@ services:
       dockerfile: Dockerfile
     container_name: loggueo_3
     environment:
-      DATABASE_URL:                ${NEON_AUTH_DB_URL3}
+      DATABASE_URL:                ${NEON_AUTH_DB_URL1}
       SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
