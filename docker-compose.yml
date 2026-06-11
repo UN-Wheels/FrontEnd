@@ -68,6 +68,13 @@ networks:
 
 
 
+  # Zone 7 – EGRESS: outbound-only internet access for services that call external APIs
+  # (e.g. search-service → Neon). Not internal so DNS and TCP to public hosts work.
+  # No container in other zones joins this network, so inbound from the internet is blocked.
+  egress:
+    driver: bridge
+    name: uniwheels-egress
+
 services:
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -140,25 +147,6 @@ services:
       timeout: 5s
       retries: 8
       start_period: 10s
-    restart: unless-stopped
-
-  search-postgres:
-    image: postgis/postgis:16-3.4-alpine
-    container_name: route-search-postgres
-    environment:
-      POSTGRES_DB:       routesearch
-      POSTGRES_USER:     postgres
-      POSTGRES_PASSWORD: postgres
-    # No host port – reachable only within the data network
-    volumes:
-      - route_search_pgdata:/var/lib/postgresql/data
-    networks:
-      - data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
     restart: unless-stopped
 
   rabbitmq:
@@ -446,7 +434,7 @@ services:
     container_name: route-search-service
     environment:
       PORT: 6000
-      DATABASE_URL: postgresql://postgres:postgres@search-postgres:5432/routesearch?sslmode=disable
+      DATABASE_URL: postgresql://neondb_owner:npg_pJL8qgkQv5fT@ep-holy-dream-app9fr6m.c-7.us-east-1.aws.neon.tech/routesearch?sslmode=require&channel_binding=require
       ROUTES_SERVICE_URL: http://routes-reservations-service:4000
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-60}
       JWT_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
@@ -455,13 +443,13 @@ services:
       # while absorbing the peak-hour burst (200 req/min around UNAL open time).
       REDIS_URL:         redis://search-redis:6379/0
       CACHE_TTL_SECONDS: 120
-    # No host port – reachable only via api-gateway on the services network
+    # No host port – reachable only via api-gateway on the services network.
+    # egress gives it a route to Neon (external PostgreSQL host).
     networks:
       - services
       - data
+      - egress
     depends_on:
-      search-postgres:
-        condition: service_healthy
       search-redis:
         condition: service_healthy
       routes-reservations-service:
@@ -713,4 +701,3 @@ volumes:
   mongo_notifications_data:
   mongo_routes_data:
   rabbitmq_data:
-  route_search_pgdata:
