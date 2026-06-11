@@ -282,7 +282,7 @@ services:
     environment:
       NODE_ENV:          production
       PORT:              3001
-      MONGODB_URI:       mongodb://mongo-chat:27017/uniwheels_chat
+      MONGODB_URI:       ${MONGO_CHAT_URI}
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
       CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:8080}
       API_GATEWAY_URL:   http://api-gateway:8080
@@ -318,7 +318,7 @@ services:
     environment:
       NODE_ENV:          production
       PORT:              3002
-      MONGODB_URI:       mongodb://mongo-notifications:27017/uniwheels_notifications
+      MONGODB_URI:       ${MONGO_NOTIFICATIONS_URI}
       JWT_ACCESS_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
       RABBITMQ_URL:      amqp://admin:admin@rabbitmq:5672?heartbeat=60
       CORS_ORIGIN:       ${FRONTEND_URL:-http://localhost:8080}
@@ -352,7 +352,7 @@ services:
     container_name: routes-service
     environment:
       PORT:         4000
-      MONGO_URI:    mongodb://mongo-routes:27017/routesdb
+      MONGO_URI:    ${MONGO_ROUTES_URI}
       JWT_SECRET:   ${JWT_SHARED_SECRET:-dev_secret_change_me}
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672?heartbeat=60
     # No host port – reachable only via api-gateway on the services network
@@ -406,7 +406,7 @@ services:
     container_name: route-search-service
     environment:
       PORT: 6000
-      DATABASE_URL: ${SEARCH_DB_URL}
+      DATABASE_URL: ${NEON_SEARCH_DB_URL}
       ROUTES_SERVICE_URL: http://routes-reservations-service:4000
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-60}
       JWT_SECRET: ${JWT_SHARED_SECRET:-dev_secret_change_me}
