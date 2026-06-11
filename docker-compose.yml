@@ -57,6 +57,16 @@ networks:
     driver: bridge
     name: uniwheels-loggueo-internal
     internal: true
+  
+  # Zone 7 – NEON-EGRESS: salida controlada hacia Neon (externo).
+  # Solo loggueo-service tiene acceso a esta red.
+  # No es internal — permite tráfico saliente a internet hacia Neon.
+  # No tiene host port binding — no es accesible desde el exterior.
+  neon-egress:
+    driver: bridge
+    name: uniwheels-neon-egress
+
+
 
 services:
 
@@ -184,7 +194,7 @@ services:
       dockerfile: Dockerfile
     container_name: loggueo_1
     environment:
-      DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-loggeo_base_db}
+      DATABASE_URL:                ${NEON_AUTH_DB_URL1}   
       SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
@@ -192,10 +202,8 @@ services:
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
     networks:
       - loggueo-internal
-      - data
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - neon-egress
+      
     healthcheck:
       test:
         [
@@ -216,7 +224,7 @@ services:
       dockerfile: Dockerfile
     container_name: loggueo_2
     environment:
-      DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-loggeo_base_db}
+      DATABASE_URL:                ${NEON_AUTH_DB_URL2}
       SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
@@ -224,10 +232,8 @@ services:
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
     networks:
       - loggueo-internal
-      - data
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - neon-egress
+
     healthcheck:
       test:
         [
@@ -248,7 +254,7 @@ services:
       dockerfile: Dockerfile
     container_name: loggueo_3
     environment:
-      DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-loggeo_base_db}
+      DATABASE_URL:                ${NEON_AUTH_DB_URL3}
       SECRET_KEY:                  ${JWT_SHARED_SECRET:-dev_secret_change_me}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       ALGORITHM:                   ${JWT_ALGORITHM:-HS256}
@@ -256,10 +262,8 @@ services:
       ENVIRONMENT:                 ${AUTH_ENVIRONMENT:-production}
     networks:
       - loggueo-internal
-      - data
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - neon-egress
+      
     healthcheck:
       test:
         [
