@@ -202,7 +202,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz').getcode()==200 else 1)",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').getcode()==200 else 1)",
         ]
       interval: 15s
       timeout: 5s
@@ -234,7 +234,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz').getcode()==200 else 1)",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').getcode()==200 else 1)",
         ]
       interval: 15s
       timeout: 5s
@@ -266,7 +266,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz').getcode()==200 else 1)",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').getcode()==200 else 1)",
         ]
       interval: 15s
       timeout: 5s
@@ -274,19 +274,21 @@ services:
       start_period: 25s
     restart: unless-stopped
 
-  # ── Nginx load balancer para loggueo_service ─────────────────────────────
+  # ── HAProxy load balancer para loggueo_service (Service Discovery) ───────
+  # Fuente de verdad de enrutamiento: option httpchk GET /readyz cada 5s.
   # Mantiene el nombre DNS "loggueo-service" para que el api-gateway no cambie.
-  # Escucha en :8000 (mismo puerto que la instancia única anterior).
   # Para cambiar algoritmo: editar el volumen y correr:
   #   docker compose up -d --no-deps loggueo-service
   loggueo-service:
-    image: nginx:alpine
+    build:
+      context: ./haproxy/loggueo-lb
+      dockerfile: Dockerfile
     container_name: loggueo-lb
     volumes:
       # Cambiar esta línea para probar cada algoritmo:
-      # - ./nginx/loggueo-lb/nginx.least-conn.conf:/etc/nginx/nginx.conf:ro
-      # - ./nginx/loggueo-lb/nginx.ip-hash.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/loggueo-lb/nginx.round-robin.conf:/etc/nginx/nginx.conf:ro
+      # - ./haproxy/loggueo-lb/haproxy.least-conn.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      # - ./haproxy/loggueo-lb/haproxy.ip-hash.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./haproxy/loggueo-lb/haproxy.round-robin.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     networks:
       - services        # api-gateway → nginx
       - loggueo-internal # nginx → réplicas
@@ -675,10 +677,8 @@ services:
       CHECK_INTERVAL_MS: "15000"
       FAIL_THRESHOLD: "3"
       PORT: "9090"
+      # Heartbeat: solo servicios SIN LB propio. Réplicas auth las chequea HAProxy (httpchk).
       SERVICES: |
-        loggueo-1=http://loggueo_1:8000/readyz
-        loggueo-2=http://loggueo_2:8000/readyz
-        loggueo-3=http://loggueo_3:8000/readyz
         loggueo-lb=http://loggueo-service:8000/healthz
         chat-service=http://chat-service:3001/health
         routes-service=http://routes-reservations-service:4000/health
